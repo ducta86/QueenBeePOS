@@ -1,0 +1,7 @@
+{
+  "name": "QueenBeePOS System",
+  "description": "Hệ thống quản lý bán hàng chuyên nghiệp, tối ưu cho Mobile và Desktop với khả năng hoạt động offline.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

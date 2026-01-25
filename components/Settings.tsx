@@ -45,7 +45,6 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  /* Added DollarSign and ShoppingBag icons to fix compilation errors */
   DollarSign,
   ShoppingBag
 } from 'lucide-react';
@@ -121,6 +120,7 @@ const Settings = () => {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [showModalPassword, setShowModalPassword] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userFormData, setUserFormData] = useState({
     username: '',
@@ -171,16 +171,27 @@ const Settings = () => {
     } else {
       setUserFormData({ username: '', fullName: '', role: 'staff', password: '' });
     }
+    setShowModalPassword(false);
   }, [editingUser, isUserModalOpen]);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-10 right-10 z-[300] ${type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right duration-300`;
+    notification.innerHTML = type === 'success' 
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><span>${message}</span>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><span>${message}</span>`;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      notification.classList.add('animate-out', 'fade-out');
+      setTimeout(() => notification.remove(), 300);
+    }, 3000);
+  };
 
   const handleUpdateProfile = async () => {
     if (!currentUser) return;
     
-    // Kiểm tra mật khẩu khớp nhau
     if (newPassword && newPassword !== confirmPassword) {
-      setError("Mật khẩu nhập lại không khớp. Vui lòng kiểm tra kỹ.");
-      // Tự động xóa lỗi sau 4 giây
-      setTimeout(() => setError(null), 4000);
+      setError("Mật khẩu nhập lại không khớp.");
       return;
     }
 
@@ -195,13 +206,9 @@ const Settings = () => {
       await updateUser(updatedUser);
       setNewPassword('');
       setConfirmPassword('');
-      const notification = document.createElement('div');
-      notification.className = "fixed top-10 right-10 z-[200] bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right";
-      notification.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><span>Đã cập nhật thông tin thành công!</span>`;
-      document.body.appendChild(notification);
-      setTimeout(() => notification.remove(), 3000);
+      showToast("Cập nhật thông tin cá nhân thành công!");
     } catch (e) {
-      setError("Không thể cập nhật thông tin cá nhân.");
+      setError("Không thể cập nhật thông tin.");
     } finally {
       setIsSavingProfile(false);
     }
@@ -212,9 +219,22 @@ const Settings = () => {
     try {
       if (editingUser) {
         await updateUser({ ...editingUser, fullName: userFormData.fullName, role: userFormData.role });
+        showToast("Đã cập nhật thông tin nhân viên.");
       } else {
         if (!userFormData.username || !userFormData.password) return;
-        await addUser(userFormData.username, userFormData.fullName, userFormData.role, userFormData.password);
+        
+        // KIỂM TRA TRÙNG USERNAME TRƯỚC KHI LƯU
+        const normalizedUsername = userFormData.username.toLowerCase().trim();
+        const existing = await db.users.where('username').equals(normalizedUsername).first();
+        
+        if (existing) {
+          setError(`Tên đăng nhập "@${normalizedUsername}" đã tồn tại trên hệ thống.`);
+          // Không tắt modal, cho phép sửa lại username
+          return; 
+        }
+
+        await addUser(normalizedUsername, userFormData.fullName, userFormData.role, userFormData.password);
+        showToast("Thêm nhân viên mới thành công!");
       }
       setIsUserModalOpen(false);
       setEditingUser(null);
@@ -248,6 +268,7 @@ const Settings = () => {
     if (userToDelete) {
       await deleteUser(userToDelete.id);
       setUserToDelete(null);
+      showToast(`Đã xóa nhân viên ${userToDelete.fullName}`);
     }
   };
 
@@ -283,25 +304,12 @@ const Settings = () => {
     setDeleteConfirmId(id);
   };
 
-  const handleVerifyAccount = async () => {
-    if (!storeConfig.bankAccount || !storeConfig.bankId || !isAdmin) return;
-    setIsVerifying(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const mockNames = ["NGUYỄN VĂN A", "TRẦN THỊ B", "LÊ VĂN C"];
-    updateStoreConfig({ ...storeConfig, bankAccountName: mockNames[Math.floor(Math.random() * mockNames.length)] });
-    setIsVerifying(false);
-  };
-
   const handleTestPrint = async () => {
     if (isTesting) return;
     setIsTesting(true);
     await new Promise(resolve => setTimeout(resolve, 2000));
     setIsTesting(false);
-    const notification = document.createElement('div');
-    notification.className = "fixed top-10 right-10 z-[200] bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-right flex items-center gap-3";
-    notification.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><span class="font-bold">Lệnh in thử đã được gửi!</span>`;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
+    showToast("Lệnh in thử đã được gửi!");
   };
 
   const handleConnectPrinter = async () => {
@@ -333,15 +341,6 @@ const Settings = () => {
       printerPaperSize: newCfg.paperSize
     });
   };
-
-  const PaperSizeOption = ({ value, label }: { value: '58mm' | '80mm' | 'A4', label: string }) => (
-    <button 
-      onClick={() => updatePrinterConfig({...printerConfig, paperSize: value})}
-      className={`flex-1 shrink-0 py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all ${printerConfig.paperSize === value ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}
-    >
-      {label}
-    </button>
-  );
 
   const selectedBank = bankList.find(b => b.code === storeConfig.bankId || b.id === storeConfig.bankId);
   const filteredBanks = bankList.filter(b => 
@@ -451,16 +450,6 @@ const Settings = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nhập lại mật khẩu mới</label>
-                      {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                        <span className="text-[9px] font-black text-rose-500 uppercase tracking-tight flex items-center">
-                          <AlertCircle size={10} className="mr-1" /> Không khớp
-                        </span>
-                      )}
-                      {newPassword && confirmPassword && newPassword === confirmPassword && (
-                        <span className="text-[9px] font-black text-emerald-500 uppercase tracking-tight flex items-center">
-                          <CheckCircle2 size={10} className="mr-1" /> Đã khớp
-                        </span>
-                      )}
                     </div>
                     <div className="relative group">
                       <ShieldCheck className={`absolute left-5 top-1/2 -translate-y-1/2 transition-colors ${newPassword && confirmPassword ? (newPassword === confirmPassword ? 'text-emerald-500' : 'text-rose-500') : 'text-slate-300'}`} size={18} />
@@ -502,7 +491,7 @@ const Settings = () => {
                       <div className="p-4 bg-emerald-50 text-emerald-600 rounded-3xl shrink-0 shadow-sm"><UsersIcon size={28} /></div>
                       <div>
                          <h3 className="text-lg font-black text-slate-800 tracking-tight">Quản lý nhân sự</h3>
-                         <p className="text-xs text-slate-500 font-medium mt-1">Thêm và quản lý quyền truy cập hệ thống của nhân viên.</p>
+                         <p className="text-xs text-slate-500 font-medium mt-1">Danh sách tài khoản và phân quyền hệ thống.</p>
                       </div>
                    </div>
                    <button 
@@ -514,13 +503,14 @@ const Settings = () => {
                    </button>
                 </div>
                 
+                {/* Desktop View Table */}
                 <div className="hidden md:block overflow-x-auto">
                    <table className="w-full text-left border-collapse">
                       <thead>
                          <tr className="bg-slate-50/50">
                             <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nhân viên</th>
                             <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vai trò</th>
-                            <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</th>
+                            <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</th>
                          </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
@@ -560,6 +550,41 @@ const Settings = () => {
                       </tbody>
                    </table>
                 </div>
+
+                {/* Mobile View Cards - Đảm bảo hiện danh sách tài khoản trên Mobile */}
+                <div className="md:hidden divide-y divide-slate-50">
+                   {users.length > 0 ? users.map((user) => (
+                     <div key={user.id} className="p-5 space-y-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-start justify-between">
+                           <div className="flex items-center space-x-4">
+                              <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-sm border border-indigo-100 shadow-sm">
+                                 {user.fullName.substring(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                 <div className="flex items-center space-x-2">
+                                    <p className="text-sm font-black text-slate-800 truncate">{user.fullName}</p>
+                                    {user.id === currentUser?.id && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded uppercase">Bạn</span>}
+                                 </div>
+                                 <p className="text-[10px] text-slate-400 font-mono">@{user.username}</p>
+                              </div>
+                           </div>
+                           <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded-full tracking-wider ${user.role === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
+                              {user.role === 'admin' ? 'Admin' : 'Staff'}
+                           </span>
+                        </div>
+                        <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-50">
+                           <button onClick={() => handleResetPassword(user.id)} className="p-3 bg-amber-50 text-amber-600 rounded-xl active:scale-90 transition-all"><RotateCcw size={16} /></button>
+                           <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="p-3 bg-indigo-50 text-indigo-600 rounded-xl active:scale-90 transition-all"><Edit2 size={16} /></button>
+                           <button onClick={() => handleConfirmDeleteUser(user)} disabled={user.id === currentUser?.id} className={`p-3 rounded-xl active:scale-90 transition-all ${user.id === currentUser?.id ? 'bg-slate-50 text-slate-200' : 'bg-red-50 text-red-600'}`}><Trash2 size={16} /></button>
+                        </div>
+                     </div>
+                   )) : (
+                     <div className="p-20 text-center opacity-20 italic">
+                        <UsersIcon size={40} className="mx-auto mb-2" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Không có nhân sự</p>
+                     </div>
+                   )}
+                </div>
              </section>
            )}
         </div>
@@ -573,7 +598,7 @@ const Settings = () => {
                     </div>
                     <div className="min-w-0">
                        <h3 className="text-lg font-black text-slate-800 tracking-tight">Thành viên thân thiết</h3>
-                       <p className="text-xs text-slate-500 font-medium mt-1 leading-tight">Cấu hình tự động thăng hạng khách hàng dựa trên chi tiêu và số đơn.</p>
+                       <p className="text-xs text-slate-500 font-medium mt-1 leading-tight">Tự động nâng hạng khách hàng.</p>
                     </div>
                  </div>
                  
@@ -588,7 +613,7 @@ const Settings = () => {
               {loyaltyConfig?.enabled ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in slide-in-from-top-4 duration-500">
                    <div className="space-y-4">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tổng chi tiêu tối thiểu</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Chi tiêu tối thiểu</label>
                       <div className="relative group">
                          <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors">
                             <DollarSign size={20} />
@@ -601,11 +626,10 @@ const Settings = () => {
                          />
                          <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">VNĐ</span>
                       </div>
-                      <p className="text-[10px] text-slate-400 font-medium ml-1">Hệ thống tự động nâng hạng khi khách đạt mốc tiền này.</p>
                    </div>
 
                    <div className="space-y-4">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Số đơn hàng tối thiểu</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Đơn hàng tối thiểu</label>
                       <div className="relative group">
                          <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors">
                             <ShoppingBag size={20} />
@@ -618,7 +642,6 @@ const Settings = () => {
                          />
                          <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">ĐƠN</span>
                       </div>
-                      <p className="text-[10px] text-slate-400 font-medium ml-1">Hoặc khi khách đạt đủ số lượng đơn hàng đã mua.</p>
                    </div>
                 </div>
               ) : (
@@ -628,7 +651,6 @@ const Settings = () => {
                    </div>
                    <div>
                       <p className="text-sm font-black text-slate-800 uppercase tracking-widest">Tính năng đang tắt</p>
-                      <p className="text-xs text-slate-400 font-medium mt-1">Kích hoạt để áp dụng chính sách chăm sóc khách hàng tự động.</p>
                    </div>
                 </div>
               )}
@@ -644,12 +666,6 @@ const Settings = () => {
                    </div>
                    <div className="min-w-0">
                       <h3 className="text-lg md:text-xl font-black text-slate-800 tracking-tight truncate">{printerConfig.status === 'connected' ? printerConfig.printerName || 'Máy in mặc định' : 'Chưa kết nối máy in'}</h3>
-                      <div className="flex items-center space-x-3 mt-1">
-                         <span className={`text-[10px] md:text-xs font-black uppercase tracking-widest ${printerConfig.status === 'connected' ? 'text-emerald-500' : printerConfig.status === 'searching' ? 'text-amber-500' : 'text-slate-400'}`}>
-                           {printerConfig.status === 'connected' ? 'Sẵn sàng' : printerConfig.status === 'searching' ? 'Đang tìm...' : 'Ngoại tuyến'}
-                         </span>
-                         {printerConfig.status === 'connected' && <span className="hidden sm:flex text-xs font-bold text-slate-400 items-center"><Network size={12} className="mr-1" /> {printerConfig.printerIp}</span>}
-                      </div>
                    </div>
                 </div>
                 <div className="flex gap-3">
@@ -661,25 +677,6 @@ const Settings = () => {
                      {isTesting ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
                      <span>In thử</span>
                    </button>
-                </div>
-             </div>
-             <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                   <label className="text-xs font-bold text-slate-600">Tên định danh</label>
-                   <input className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold" value={printerConfig.printerName} onChange={(e) => updatePrinterConfig({...printerConfig, printerName: e.target.value})} />
-                   <label className="text-xs font-bold text-slate-600">Địa chỉ IP / Cổng</label>
-                   <input className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-mono font-bold" value={printerConfig.printerIp} onChange={(e) => updatePrinterConfig({...printerConfig, printerIp: e.target.value})} />
-                </div>
-                <div className="space-y-4">
-                   <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Phương thức</h4>
-                   <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => updatePrinterConfig({...printerConfig, connectionType: 'wired'})} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${printerConfig.connectionType === 'wired' ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400'}`}>
-                        <Cable size={24} /><span className="text-[9px] font-black uppercase">Có dây</span>
-                      </button>
-                      <button onClick={() => updatePrinterConfig({...printerConfig, connectionType: 'wireless'})} className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${printerConfig.connectionType === 'wireless' ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-400'}`}>
-                        <Wifi size={24} /><span className="text-[9px] font-black uppercase">Không dây</span>
-                      </button>
-                   </div>
                 </div>
              </div>
           </div>
@@ -697,7 +694,7 @@ const Settings = () => {
                  <div className="p-4 bg-indigo-50 text-indigo-600 rounded-3xl shrink-0 shadow-sm"><Store size={28} /></div>
                  <div>
                     <h3 className="text-lg font-black text-slate-800 tracking-tight">Thông tin gian hàng</h3>
-                    <p className="text-xs text-slate-500 font-medium mt-1">Cập nhật danh tính thương hiệu trên hóa đơn.</p>
+                    <p className="text-xs text-slate-500 font-medium mt-1">Hồ sơ thương hiệu.</p>
                  </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -720,7 +717,7 @@ const Settings = () => {
                   <div className="p-4 bg-emerald-50 text-emerald-600 rounded-3xl shrink-0 shadow-sm"><CreditCard size={28} /></div>
                   <div className="flex-1">
                       <h3 className="text-lg font-black text-slate-800 tracking-tight">Thanh toán VietQR</h3>
-                      <p className="text-xs text-slate-500 font-medium mt-1">Thông tin ngân hàng nhận tiền chuyển khoản.</p>
+                      <p className="text-xs text-slate-500 font-medium mt-1">Cấu hình nhận tiền chuyển khoản POS.</p>
                   </div>
                 </div>
                 
@@ -772,40 +769,16 @@ const Settings = () => {
         </div>
       ) : (
         <div className="space-y-6 animate-in slide-in-from-bottom-2">
-          {activeTab === 'prices' && (
-            <div className="p-6 bg-amber-50 rounded-[32px] border border-amber-100 flex flex-col md:flex-row items-center gap-6">
-              <div className="p-4 bg-white rounded-2xl shadow-sm text-amber-600 shrink-0">
-                <BoxSelect size={32} />
-              </div>
-              <div className="flex-1 text-center md:text-left">
-                <h4 className="font-black text-amber-800 text-sm uppercase">Cấu hình giá nhập kho</h4>
-                <p className="text-xs text-amber-600 font-medium">Chọn loại giá hệ thống sẽ ưu tiên khi nhập hàng.</p>
-              </div>
-              <div className="relative w-full md:w-auto min-w-[240px]">
-                <select 
-                  className="w-full px-6 py-4 bg-white border border-amber-200 rounded-2xl outline-none font-black text-amber-900 cursor-pointer appearance-none text-sm transition-all"
-                  value={storeConfig.costPriceTypeId}
-                  onChange={(e) => updateStoreConfig({...storeConfig, costPriceTypeId: e.target.value})}
-                >
-                  {priceTypes.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" size={20} />
-              </div>
-            </div>
-          )}
-
           <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-4 md:p-6 border-b border-slate-50 bg-slate-50/30 flex flex-col sm:flex-row gap-4">
               <input 
                 className="flex-1 px-5 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
-                placeholder={activeTab === 'prices' ? "Nhập tên loại giá mới..." : "Nhập tên nhóm hàng mới..."}
+                placeholder={activeTab === 'prices' ? "Loại giá mới..." : "Nhóm hàng mới..."}
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
               />
               <button onClick={handleAdd} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center space-x-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
-                <Plus size={18} /><span>Thêm mới</span>
+                <Plus size={18} /><span>Thêm</span>
               </button>
             </div>
             <div className="divide-y divide-slate-50">
@@ -824,7 +797,6 @@ const Settings = () => {
                     ) : (
                       <div>
                         <p className="font-bold text-slate-800 text-sm">{item.name}</p>
-                        <span className="text-[10px] text-slate-400 font-black uppercase">ID: {item.id}</span>
                       </div>
                     )}
                   </div>
@@ -842,32 +814,42 @@ const Settings = () => {
       )}
 
       {isUserModalOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-           <div className="bg-white w-full max-w-lg rounded-[40px] shadow-3xl overflow-hidden flex flex-col animate-in zoom-in-95">
-              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 md:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+           <div className="bg-white w-full max-w-lg rounded-none md:rounded-[40px] shadow-3xl overflow-hidden flex flex-col h-full md:h-auto animate-in zoom-in-95">
+              <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/20">
                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-emerald-600 text-white rounded-xl"><UserPlus size={20} /></div>
+                    <div className={`p-2 rounded-xl text-white ${editingUser ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
+                       {editingUser ? <Edit2 size={20} /> : <UserPlus size={20} />}
+                    </div>
                     <h2 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">
                        {editingUser ? 'Cập nhật nhân viên' : 'Thêm nhân viên mới'}
                     </h2>
                  </div>
                  <button onClick={() => setIsUserModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-300 transition-all"><X size={20} /></button>
               </div>
-              <form onSubmit={handleUserSubmit} className="p-8 space-y-6">
+              
+              <form onSubmit={handleUserSubmit} className="p-8 space-y-6 flex-1 overflow-y-auto scrollbar-hide">
                  {!editingUser && (
                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tên đăng nhập *</label>
-                      <input 
-                        required 
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" 
-                        value={userFormData.username} 
-                        onChange={(e) => setUserFormData({...userFormData, username: e.target.value.toLowerCase()})} 
-                        placeholder="VD: nguyenvan_a"
-                      />
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tên đăng nhập *</label>
+                      </div>
+                      <div className="relative group">
+                         <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors font-mono">@</div>
+                         <input 
+                           required 
+                           autoFocus
+                           className="w-full pl-10 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" 
+                           value={userFormData.username} 
+                           onChange={(e) => setUserFormData({...userFormData, username: e.target.value.toLowerCase().replace(/\s/g, '')})} 
+                           placeholder="VD: nhanvien_01"
+                         />
+                      </div>
                    </div>
                  )}
+                 
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Họ và tên nhân viên *</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Họ và tên *</label>
                     <input 
                       required 
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" 
@@ -876,41 +858,55 @@ const Settings = () => {
                       placeholder="VD: Nguyễn Văn A"
                     />
                  </div>
+                 
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phân quyền hệ thống *</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phân quyền *</label>
                     <div className="grid grid-cols-2 gap-3">
                        <button 
                         type="button"
                         onClick={() => setUserFormData({...userFormData, role: 'admin'})}
-                        className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center space-x-2 ${userFormData.role === 'admin' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400'}`}
+                        className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center space-x-2 ${userFormData.role === 'admin' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 border-slate-100 text-slate-400'}`}
                        >
                          <ShieldCheck size={16} /><span>Quản trị</span>
                        </button>
                        <button 
                         type="button"
                         onClick={() => setUserFormData({...userFormData, role: 'staff'})}
-                        className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center space-x-2 ${userFormData.role === 'staff' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-slate-50 border-slate-100 text-slate-400'}`}
+                        className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center space-x-2 ${userFormData.role === 'staff' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 border-slate-100 text-slate-400'}`}
                        >
                          <UserIcon size={16} /><span>Nhân viên</span>
                        </button>
                     </div>
                  </div>
+
                  {!editingUser && (
                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mật khẩu khởi tạo *</label>
-                      <input 
-                        required 
-                        type="password"
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" 
-                        value={userFormData.password} 
-                        onChange={(e) => setUserFormData({...userFormData, password: e.target.value})} 
-                        placeholder="••••••••"
-                      />
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mật khẩu ban đầu *</label>
+                      <div className="relative group">
+                         <input 
+                           required 
+                           type={showModalPassword ? "text" : "password"}
+                           className="w-full pl-6 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" 
+                           value={userFormData.password} 
+                           onChange={(e) => setUserFormData({...userFormData, password: e.target.value})} 
+                           placeholder="••••••••"
+                         />
+                         <button 
+                           type="button"
+                           onClick={() => setShowModalPassword(!showModalPassword)}
+                           className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-indigo-600 transition-colors focus:outline-none"
+                         >
+                           {showModalPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                         </button>
+                      </div>
                    </div>
                  )}
-                 <div className="pt-4 flex gap-3">
+                 
+                 <div className="pt-4 flex gap-3 pb-10 md:pb-0">
                     <button type="button" onClick={() => setIsUserModalOpen(false)} className="flex-1 py-4 font-black text-slate-400 hover:text-slate-600 text-[11px] uppercase tracking-widest transition-all">HỦY BỎ</button>
-                    <button type="submit" className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-emerald-600 transition-all">LƯU NHÂN VIÊN</button>
+                    <button type="submit" className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-emerald-600 transition-all">
+                       {editingUser ? 'LƯU THAY ĐỔI' : 'TẠO TÀI KHOẢN'}
+                    </button>
                  </div>
               </form>
            </div>

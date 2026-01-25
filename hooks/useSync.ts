@@ -18,8 +18,13 @@ export const useSync = () => {
 
   useEffect(() => {
     checkUnsynced();
-    const interval = setInterval(checkUnsynced, 5000); // Cập nhật số lượng mỗi 5s
-    return () => clearInterval(interval);
+    // Lắng nghe thay đổi kết nối mạng
+    window.addEventListener('online', checkUnsynced);
+    const interval = setInterval(checkUnsynced, 5000); 
+    return () => {
+      window.removeEventListener('online', checkUnsynced);
+      clearInterval(interval);
+    };
   }, [checkUnsynced]);
 
   const syncData = async () => {
@@ -35,7 +40,7 @@ export const useSync = () => {
       const unsyncedOrders = await db.orders.where('synced').equals(0).toArray();
       const unsyncedCustomers = await db.customers.where('synced').equals(0).toArray();
 
-      // Giả lập gọi API đẩy dữ liệu
+      // Giả lập độ trễ mạng thực tế
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       await (db as Dexie).transaction('rw', [db.products, db.orders, db.customers], async () => {
@@ -58,12 +63,18 @@ export const useSync = () => {
   useEffect(() => {
     const autoSync = async () => {
       const total = await checkUnsynced();
-      if (total > 0 && navigator.onLine) {
+      if (total > 0 && navigator.onLine && !isSyncing) {
         syncData();
       }
     };
     autoSync();
   }, [unsyncedCount.products, unsyncedCount.orders, unsyncedCount.customers]);
 
-  return { syncData, isSyncing, lastSync, unsyncedCount, totalUnsynced: unsyncedCount.products + unsyncedCount.orders + unsyncedCount.customers };
+  return { 
+    syncData, 
+    isSyncing, 
+    lastSync, 
+    unsyncedCount, 
+    totalUnsynced: unsyncedCount.products + unsyncedCount.orders + unsyncedCount.customers 
+  };
 };

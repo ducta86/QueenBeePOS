@@ -18,11 +18,9 @@ import {
   ChevronDown,
   User as UserIcon,
   Loader2,
-  CheckCircle2,
-  AlertCircle,
   CloudOff,
   CloudDownload,
-  ArrowRight
+  AlertCircle
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ProductManager from './components/ProductManager';
@@ -56,6 +54,8 @@ const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSyncMenuOpen, setIsSyncMenuOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
   const userMenuRef = useRef<HTMLDivElement>(null);
   const syncMenuRef = useRef<HTMLDivElement>(null);
   
@@ -69,6 +69,10 @@ const AppContent = () => {
   }, [currentUser]);
 
   useEffect(() => {
+    const handleStatusChange = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatusChange);
+    window.addEventListener('offline', handleStatusChange);
+
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setIsUserMenuOpen(false);
@@ -78,7 +82,11 @@ const AppContent = () => {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('online', handleStatusChange);
+      window.removeEventListener('offline', handleStatusChange);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   if (!currentUser) {
@@ -121,15 +129,15 @@ const AppContent = () => {
         fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-100 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0
         ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
       `}>
-        <div className="h-full flex flex-col p-4 overflow-hidden">
-          <div className="flex items-center space-x-2 px-4 py-6 overflow-hidden shrink-0">
+        <div className="h-full flex flex-col p-4">
+          <div className="flex items-center space-x-2 px-4 py-6 shrink-0">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-indigo-200 shadow-lg shrink-0">
               <CreditCard size={24} />
             </div>
             <div className="flex-1 min-w-0">{renderBrandName()}</div>
           </div>
 
-          <nav className="flex-1 space-y-1 mt-4 overflow-y-auto scrollbar-hide pr-1">
+          <nav className="flex-1 space-y-1 mt-4 overflow-y-auto scrollbar-hide">
             <SidebarItem icon={LayoutDashboard} label="Bảng điều khiển" path="/" active={location.pathname === '/'} onClick={handleItemClick} />
             <SidebarItem icon={ShoppingCart} label="Bán hàng (POS)" path="/pos" active={location.pathname === '/pos'} onClick={handleItemClick} />
             <SidebarItem icon={PackagePlus} label="Nhập hàng" path="/purchase" active={location.pathname === '/purchase'} onClick={handleItemClick} />
@@ -140,15 +148,16 @@ const AppContent = () => {
             <SidebarItem icon={SettingsIcon} label="Cài đặt" path="/settings" active={location.pathname === '/settings'} onClick={handleItemClick} />
           </nav>
 
-          <div className="mt-4 p-3 bg-slate-50 rounded-2xl border border-slate-100/50 shrink-0">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-black uppercase text-[10px] shadow-sm shrink-0">
+          <div className="mt-auto p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-black uppercase text-xs shadow-sm">
                 {getInitials()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-black text-slate-900 leading-tight break-words">{currentUser?.fullName}</p>
-                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">{currentUser?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</p>
+                <p className="text-sm font-black text-slate-900 truncate">{currentUser?.fullName}</p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase">{currentUser?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</p>
               </div>
+              <LogOut size={18} className="text-slate-300 hover:text-red-500 cursor-pointer transition-colors" onClick={logout} />
             </div>
           </div>
         </div>
@@ -156,22 +165,22 @@ const AppContent = () => {
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 shrink-0">
-          <div className="flex items-center space-x-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">
+          <div className="flex items-center space-x-3">
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
               <Menu size={24} />
             </button>
             
-            {/* Status Indicator (Visible on mobile and desktop) */}
-            <div className="flex items-center bg-slate-50 px-2 sm:px-3 py-1.5 rounded-full border border-slate-100">
-              <div className={`w-2 h-2 rounded-full animate-pulse mr-1.5 sm:mr-2 ${navigator.onLine ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-[8px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                {navigator.onLine ? 'Online' : 'Offline'}
+            {/* Online Status (Visible on all screens) */}
+            <div className={`flex items-center px-2 sm:px-3 py-1.5 rounded-full border transition-colors ${isOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 sm:mr-2 animate-pulse ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+              <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${isOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {isOnline ? 'System Online' : 'System Offline'}
               </span>
             </div>
           </div>
 
           <div className="flex items-center space-x-2 md:space-x-4">
-            {/* Sync Notifications Hub (The Bell) */}
+            {/* Sync Notifications Hub */}
             <div className="relative" ref={syncMenuRef}>
               <button 
                 onClick={() => setIsSyncMenuOpen(!isSyncMenuOpen)}
@@ -179,36 +188,36 @@ const AppContent = () => {
               >
                 <Bell size={20} />
                 {totalUnsynced > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">
                     {totalUnsynced > 9 ? '9+' : totalUnsynced}
                   </span>
                 )}
               </button>
 
               {isSyncMenuOpen && (
-                <div className="absolute right-0 mt-3 w-72 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
-                   <div className="px-5 py-4 border-b border-slate-50 bg-slate-50/50 -mx-2 -mt-2 mb-2">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trạng thái đồng bộ</h4>
-                      <p className="text-[11px] font-bold text-slate-600 mt-1">
-                        {totalUnsynced === 0 ? 'Mọi thứ đã an toàn trên Cloud' : `Có ${totalUnsynced} mục chưa được tải lên`}
+                <div className="absolute right-0 mt-3 w-64 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
+                   <div className="px-4 py-3 border-b border-slate-50 bg-slate-50/50 -mx-2 -mt-2 mb-2">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trạng thái dữ liệu</h4>
+                      <p className="text-[11px] font-bold text-slate-700 mt-1">
+                        {totalUnsynced === 0 ? 'Dữ liệu đã được bảo vệ trên mây' : `Có ${totalUnsynced} thay đổi chưa lưu`}
                       </p>
                    </div>
                    
-                   <div className="space-y-1 px-2 pb-2">
+                   <div className="space-y-1">
                       {[
-                        { label: 'Sản phẩm mới/sửa', count: unsyncedCount.products, icon: Package },
-                        { label: 'Đơn hàng mới', count: unsyncedCount.orders, icon: FileText },
-                        { label: 'Thông tin khách hàng', count: unsyncedCount.customers, icon: Users }
+                        { label: 'Sản phẩm', count: unsyncedCount.products, icon: Package },
+                        { label: 'Đơn hàng', count: unsyncedCount.orders, icon: FileText },
+                        { label: 'Khách hàng', count: unsyncedCount.customers, icon: Users }
                       ].map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors group">
+                        <div key={idx} className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-slate-50 transition-colors">
                            <div className="flex items-center space-x-3">
-                              <div className={`p-2 rounded-xl ${item.count > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
-                                 <item.icon size={16} />
+                              <div className={`p-1.5 rounded-lg ${item.count > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-300'}`}>
+                                 <item.icon size={14} />
                               </div>
-                              <span className="text-xs font-bold text-slate-600">{item.label}</span>
+                              <span className="text-[11px] font-bold text-slate-600">{item.label}</span>
                            </div>
-                           <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${item.count > 0 ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                              {item.count > 0 ? `+${item.count}` : 'Đã xong'}
+                           <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-lg ${item.count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-500'}`}>
+                              {item.count > 0 ? `+${item.count}` : 'Ok'}
                            </span>
                         </div>
                       ))}
@@ -218,74 +227,57 @@ const AppContent = () => {
                       <div className="p-2 border-t border-slate-50 mt-2">
                         <button 
                           onClick={() => { syncData(); setIsSyncMenuOpen(false); }}
-                          disabled={!navigator.onLine}
-                          className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center space-x-2 shadow-lg shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 disabled:grayscale transition-all"
+                          disabled={!isOnline || isSyncing}
+                          className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center space-x-2 shadow-lg hover:bg-indigo-700 disabled:opacity-50 transition-all"
                         >
                            {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <CloudDownload size={14} />}
-                           <span>Đồng bộ thủ công ngay</span>
+                           <span>Đồng bộ ngay</span>
                         </button>
-                        {!navigator.onLine && (
-                           <p className="text-[9px] text-red-500 text-center font-bold mt-2 flex items-center justify-center">
-                              <CloudOff size={10} className="mr-1" /> Không có kết nối internet
-                           </p>
-                        )}
-                      </div>
-                   )}
-                   {lastSync && (
-                      <div className="px-4 py-2 text-center">
-                         <span className="text-[8px] font-black text-slate-300 uppercase italic">Lần cuối: {new Date(lastSync).toLocaleTimeString()}</span>
                       </div>
                    )}
                 </div>
               )}
             </div>
             
-            {/* Sync Button */}
+            {/* Main Sync Button */}
             <button 
               onClick={syncData}
-              disabled={isSyncing || !navigator.onLine}
-              className={`flex items-center space-x-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all active:scale-95 shadow-sm border ${
+              disabled={isSyncing || !isOnline}
+              className={`flex items-center space-x-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border ${
                 totalUnsynced > 0 
-                  ? 'bg-amber-50 text-amber-600 border-amber-100' 
-                  : 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                  ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' 
+                  : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'
               } disabled:opacity-50`}
-              title={!navigator.onLine ? "Ngoại tuyến" : "Nhấn để đồng bộ dữ liệu"}
             >
               <RefreshCw size={16} className={`${isSyncing ? 'animate-spin' : ''}`} />
               <span className="hidden xs:inline">{isSyncing ? 'Đang gửi...' : 'Đồng bộ'}</span>
             </button>
 
-            {/* User Dropdown Menu */}
+            {/* User Dropdown */}
             <div className="relative" ref={userMenuRef}>
               <button 
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className={`flex items-center space-x-2 sm:space-x-3 p-1 rounded-2xl transition-all border border-transparent ${isUserMenuOpen ? 'bg-white shadow-lg border-slate-100 ring-4 ring-indigo-50' : 'hover:bg-slate-50'}`}
+                className={`flex items-center space-x-2 p-1 rounded-2xl transition-all border border-transparent ${isUserMenuOpen ? 'bg-white shadow-lg border-slate-100' : 'hover:bg-slate-50'}`}
               >
-                <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-[10px] shadow-sm shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-[10px] shrink-0">
                   {getInitials()}
                 </div>
-                <div className="hidden sm:block text-left max-w-[120px]">
-                  <p className="text-[12px] font-black text-slate-900 leading-tight truncate">{currentUser?.fullName}</p>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">
-                    {currentUser?.role === 'admin' ? 'Admin' : 'Nhân viên'}
-                  </p>
-                </div>
-                <ChevronDown size={14} className={`text-slate-400 transition-transform duration-300 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-3 w-56 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right">
-                  <div className="px-4 py-3 border-b border-slate-50 mb-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Phiên làm việc</p>
-                    <p className="text-xs font-bold text-slate-600 truncate">{currentUser?.username}</p>
+                <div className="absolute right-0 mt-3 w-48 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right">
+                  <div className="px-4 py-3 border-b border-slate-50 mb-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cá nhân</p>
+                    <p className="text-xs font-bold text-slate-700 truncate">{currentUser?.fullName}</p>
                   </div>
-                  <Link to="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group">
-                    <UserIcon size={18} className="text-slate-400 group-hover:text-indigo-600" />
-                    <span className="font-bold text-sm">Hồ sơ cá nhân</span>
+                  <Link to="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center space-x-3 px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all group">
+                    <UserIcon size={16} className="text-slate-400 group-hover:text-indigo-600" />
+                    <span className="font-bold text-xs">Hồ sơ của tôi</span>
                   </Link>
-                  <button onClick={() => { logout(); setIsUserMenuOpen(false); }} className="w-full flex items-center space-x-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-2xl transition-all group">
-                    <LogOut size={18} className="text-red-400 group-hover:text-red-600" />
-                    <span className="font-bold text-sm">Đăng xuất</span>
+                  <button onClick={logout} className="w-full flex items-center space-x-3 px-4 py-2.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-all group">
+                    <LogOut size={16} className="text-rose-400 group-hover:text-rose-600" />
+                    <span className="font-bold text-xs">Đăng xuất</span>
                   </button>
                 </div>
               )}

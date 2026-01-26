@@ -45,7 +45,9 @@ export class POSDatabase extends Dexie {
 
   constructor() {
     super('POSDatabase');
-    (this as Dexie).version(7).stores({ // Nâng cấp version để tương thích User schema mới
+    // Nâng cấp lên version 9 để đảm bảo các chỉ mục mới cho bảng users được áp dụng triệt để
+    // Điều này khắc phục lỗi "KeyPath synced on object store users is not indexed"
+    (this as Dexie).version(9).stores({ 
       products: 'id, name, code, barcode, groupId, lineId, synced, updatedAt, deleted',
       productPrices: 'id, productId, priceTypeId',
       priceTypes: 'id, name',
@@ -54,7 +56,7 @@ export class POSDatabase extends Dexie {
       customerTypes: 'id, name, defaultPriceTypeId',
       orders: 'id, customerId, status, synced, updatedAt, deleted',
       purchases: 'id, supplierName, createdAt, deleted',
-      users: 'id, username, role, deleted'
+      users: 'id, username, role, synced, updatedAt, deleted'
     });
   }
 }

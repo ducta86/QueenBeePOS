@@ -11,7 +11,7 @@ export type UserRole = 'admin' | 'staff';
 export interface User extends BaseEntity {
   username: string;
   passwordHash: string;
-  passwordSalt: string; // Hex string of unique salt
+  passwordSalt: string; 
   fullName: string;
   role: UserRole;
   lastLogin?: number;
@@ -33,6 +33,7 @@ export interface StoreConfig {
   printerAutoPrint?: boolean;
   printerPaperSize?: '58mm' | '80mm' | 'A4';
   printerCopies?: number;
+  syncKey?: string; // Khóa đồng bộ đám mây
 }
 
 export interface Product extends BaseEntity {

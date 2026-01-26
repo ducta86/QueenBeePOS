@@ -1,11 +1,16 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../db';
+import { useStore } from '../store';
 import { Dexie } from 'dexie';
 
+// Giả lập một Cloud Server (trong thực tế sẽ là API endpoint)
+const CLOUD_STORAGE_KEY = 'POS_CLOUD_MOCK_STORAGE';
+
 export const useSync = () => {
+  const { storeConfig } = useStore();
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<number | null>(null);
+  const [lastSync, setLastSync] = useState<number | null>(Number(localStorage.getItem('last_sync_ts')) || null);
   const [unsyncedCount, setUnsyncedCount] = useState({ products: 0, orders: 0, customers: 0, users: 0 });
 
   const checkUnsynced = useCallback(async () => {
@@ -19,59 +24,87 @@ export const useSync = () => {
 
   useEffect(() => {
     checkUnsynced();
-    // Lắng nghe thay đổi kết nối mạng
-    window.addEventListener('online', checkUnsynced);
     const interval = setInterval(checkUnsynced, 5000); 
-    return () => {
-      window.removeEventListener('online', checkUnsynced);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [checkUnsynced]);
 
+  // Hàm thực hiện đồng bộ thực tế (giả lập Cloud qua LocalStorage dùng chung giữa các tab hoặc giả định API)
   const syncData = async () => {
-    if (isSyncing || !navigator.onLine) return;
+    if (!storeConfig.syncKey || isSyncing || !navigator.onLine) return;
     
-    const total = await checkUnsynced();
-    if (total === 0) return;
-
     setIsSyncing(true);
+    const syncKey = storeConfig.syncKey;
 
     try {
+      // 1. PUSH: Lấy dữ liệu chưa đồng bộ cục bộ
       const unsyncedProducts = await db.products.where('synced').equals(0).toArray();
       const unsyncedOrders = await db.orders.where('synced').equals(0).toArray();
       const unsyncedCustomers = await db.customers.where('synced').equals(0).toArray();
       const unsyncedUsers = await db.users.where('synced').equals(0).toArray();
 
-      // Giả lập độ trễ mạng thực tế
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 2. CLOUD RELAY (Giả lập gửi lên server)
+      // Trong thực tế: await fetch('/api/sync', { method: 'POST', body: JSON.stringify({...}) })
+      const cloudDataRaw = localStorage.getItem(`${CLOUD_STORAGE_KEY}_${syncKey}`);
+      let cloudDB = cloudDataRaw ? JSON.parse(cloudDataRaw) : { products: [], orders: [], customers: [], users: [] };
+
+      // Hàm merge dữ liệu cục bộ vào cloud (Last-write-wins)
+      const mergeToCloud = (cloudList: any[], localList: any[]) => {
+        localList.forEach(localItem => {
+          const idx = cloudList.findIndex(i => i.id === localItem.id);
+          if (idx > -1) {
+            if (localItem.updatedAt > cloudList[idx].updatedAt) {
+              cloudList[idx] = { ...localItem, synced: 1 };
+            }
+          } else {
+            cloudList.push({ ...localItem, synced: 1 });
+          }
+        });
+      };
+
+      mergeToCloud(cloudDB.products, unsyncedProducts);
+      mergeToCloud(cloudDB.orders, unsyncedOrders);
+      mergeToCloud(cloudDB.customers, unsyncedCustomers);
+      mergeToCloud(cloudDB.users, unsyncedUsers);
+
+      // Lưu lại "Cloud" giả lập
+      localStorage.setItem(`${CLOUD_STORAGE_KEY}_${syncKey}`, JSON.stringify(cloudDB));
+
+      // 3. PULL: Tải dữ liệu từ Cloud về và cập nhật Local
+      // Merge ngược lại vào IndexedDB cục bộ
+      const updateLocal = async (table: any, cloudItems: any[]) => {
+        for (const item of cloudItems) {
+          const localItem = await table.get(item.id);
+          if (!localItem || item.updatedAt > localItem.updatedAt) {
+            await table.put({ ...item, synced: 1 });
+          }
+        }
+      };
 
       await (db as Dexie).transaction('rw', [db.products, db.orders, db.customers, db.users], async () => {
-        const now = Date.now();
-        for (const p of unsyncedProducts) await db.products.update(p.id, { synced: 1, updatedAt: now });
-        for (const o of unsyncedOrders) await db.orders.update(o.id, { synced: 1, updatedAt: now });
-        for (const c of unsyncedCustomers) await db.customers.update(c.id, { synced: 1, updatedAt: now });
-        for (const u of unsyncedUsers) await db.users.update(u.id, { synced: 1, updatedAt: now });
+        await updateLocal(db.products, cloudDB.products);
+        await updateLocal(db.orders, cloudDB.orders);
+        await updateLocal(db.customers, cloudDB.customers);
+        await updateLocal(db.users, cloudDB.users);
       });
 
-      setLastSync(Date.now());
+      const now = Date.now();
+      setLastSync(now);
+      localStorage.setItem('last_sync_ts', now.toString());
       await checkUnsynced();
     } catch (error) {
       console.error('Lỗi đồng bộ:', error);
     } finally {
-      setIsSyncing(false);
+      setTimeout(() => setIsSyncing(false), 1000);
     }
   };
 
-  // Tự động đồng bộ khi online và có dữ liệu mới
+  // Tự động đồng bộ mỗi khi có thay đổi hoặc định kỳ
   useEffect(() => {
-    const autoSync = async () => {
-      const total = await checkUnsynced();
-      if (total > 0 && navigator.onLine && !isSyncing) {
-        syncData();
-      }
-    };
-    autoSync();
-  }, [unsyncedCount.products, unsyncedCount.orders, unsyncedCount.customers, unsyncedCount.users]);
+    if (storeConfig.syncKey && navigator.onLine) {
+       const timer = setTimeout(syncData, 2000);
+       return () => clearTimeout(timer);
+    }
+  }, [unsyncedCount.products, unsyncedCount.orders, unsyncedCount.customers, unsyncedCount.users, storeConfig.syncKey]);
 
   return { 
     syncData, 

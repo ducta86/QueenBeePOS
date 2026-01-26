@@ -46,7 +46,12 @@ import {
   CreditCard,
   Building,
   Search,
-  FileText
+  FileText,
+  Cloud,
+  CloudLightning,
+  Copy,
+  Zap,
+  Link as LinkIcon
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 
@@ -99,11 +104,15 @@ const Settings = () => {
     error, setError
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'prices' | 'groups' | 'loyalty' | 'store' | 'printer' | 'account'>('prices');
+  const [activeTab, setActiveTab] = useState<'prices' | 'groups' | 'loyalty' | 'store' | 'printer' | 'account' | 'sync'>('prices');
   const [newValue, setNewValue] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  // Sync States
+  const [tempSyncKey, setTempSyncKey] = useState(storeConfig.syncKey || '');
+  const [isSyncProcessing, setIsSyncProcessing] = useState(false);
 
   // Store States
   const [bankList, setBankList] = useState<Bank[]>(POPULAR_BANKS);
@@ -224,6 +233,19 @@ const Settings = () => {
     }
   };
 
+  const handleUpdateSyncKey = async () => {
+    setIsSyncProcessing(true);
+    await new Promise(r => setTimeout(r, 1500));
+    await updateStoreConfig({ ...storeConfig, syncKey: tempSyncKey });
+    setIsSyncProcessing(false);
+    showToast("Đã cập nhật khóa đồng bộ. Hệ thống sẽ khởi động kết nối.");
+  };
+
+  const generateNewSyncKey = () => {
+    const newKey = Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    setTempSyncKey(newKey);
+  };
+
   const handleAdd = () => {
     if (!newValue.trim()) return;
     if (activeTab === 'prices') addPriceType(newValue);
@@ -298,7 +320,7 @@ const Settings = () => {
       </div>
 
       <div className="flex flex-wrap bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm w-full gap-1.5 sticky top-16 z-20 overflow-hidden">
-        {(['prices', 'groups', 'loyalty', 'store', 'printer', 'account'] as const).map(tab => (
+        {(['prices', 'groups', 'loyalty', 'store', 'printer', 'account', 'sync'] as const).map(tab => (
           <button 
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -310,14 +332,95 @@ const Settings = () => {
             {tab === 'store' && <Store size={18} />}
             {tab === 'printer' && <Printer size={18} />}
             {tab === 'account' && <UserIcon size={18} />}
+            {tab === 'sync' && <Cloud size={18} />}
             <span className="text-sm">
-              {tab === 'prices' ? 'Loại giá' : tab === 'groups' ? 'Nhóm hàng' : tab === 'loyalty' ? 'Thân thiết' : tab === 'store' ? 'Gian hàng' : tab === 'printer' ? 'Máy in' : 'Tài khoản'}
+              {tab === 'prices' ? 'Loại giá' : tab === 'groups' ? 'Nhóm hàng' : tab === 'loyalty' ? 'Thân thiết' : tab === 'store' ? 'Gian hàng' : tab === 'printer' ? 'Máy in' : tab === 'account' ? 'Tài khoản' : 'Kết nối'}
             </span>
           </button>
         ))}
       </div>
 
-      {activeTab === 'store' ? (
+      {activeTab === 'sync' ? (
+        <div className="space-y-8 animate-in slide-in-from-bottom-2">
+           <section className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-6 md:p-10 space-y-10 overflow-hidden">
+              <div className="flex items-center space-x-5 border-b border-slate-50 pb-8">
+                 <div className="p-4 bg-indigo-50 text-indigo-600 rounded-3xl shrink-0 shadow-sm border border-indigo-100"><Cloud size={28} /></div>
+                 <div>
+                    <h3 className="text-lg font-black text-slate-800 tracking-tight">Đồng bộ đa thiết bị (Cloud Sync)</h3>
+                    <p className="text-xs text-slate-500 font-medium mt-1">Kết nối nhiều điện thoại, máy tính vào cùng một dữ liệu cửa hàng.</p>
+                 </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="space-y-6">
+                   <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-100 space-y-4">
+                      <div className="flex items-center space-x-3 text-indigo-600">
+                         <Zap size={18} />
+                         <span className="text-[10px] font-black uppercase tracking-widest">Hướng dẫn kết nối</span>
+                      </div>
+                      <ol className="text-xs text-slate-600 space-y-3 list-decimal list-inside font-medium leading-relaxed">
+                         <li>Sao chép <b>Mã đồng bộ</b> của thiết bị này.</li>
+                         <li>Tải ứng dụng trên thiết bị mới (Điện thoại/Máy tính khác).</li>
+                         <li>Vào phần <b>Cài đặt &gt; Kết nối</b> và nhập đúng mã này.</li>
+                         <li>Dữ liệu sẽ tự động gộp và đồng bộ thời gian thực.</li>
+                      </ol>
+                   </div>
+                </div>
+
+                <div className="space-y-6">
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mã đồng bộ của bạn (Sync Key)</label>
+                      <div className="relative group">
+                        <Key className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                        <input 
+                          className="w-full pl-14 pr-32 py-5 bg-slate-50 border border-slate-200 rounded-[24px] font-black text-lg outline-none focus:ring-4 focus:ring-indigo-50 transition-all uppercase tracking-widest" 
+                          value={tempSyncKey} 
+                          onChange={(e) => setTempSyncKey(e.target.value.toUpperCase())}
+                          placeholder="NHẬP MÃ HOẶC TẠO MỚI" 
+                        />
+                        <button 
+                          onClick={generateNewSyncKey}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 px-4 py-2 bg-white text-slate-600 text-[9px] font-black uppercase rounded-xl border border-slate-100 hover:bg-indigo-50 hover:text-indigo-600 transition-all"
+                        >
+                          Tạo mã mới
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-400 font-medium ml-1">* Tuyệt đối không chia sẻ mã này cho người lạ.</p>
+                   </div>
+
+                   <button 
+                     onClick={handleUpdateSyncKey}
+                     disabled={isSyncProcessing || !tempSyncKey}
+                     className="w-full py-5 bg-slate-900 text-white rounded-[24px] font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-slate-200 flex items-center justify-center space-x-3 hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50"
+                   >
+                     {isSyncProcessing ? <RefreshCw size={18} className="animate-spin" /> : <LinkIcon size={18} />}
+                     <span>KẾT NỐI ĐÁM MÂY</span>
+                   </button>
+                </div>
+              </div>
+
+              <div className="pt-8 border-t border-slate-50">
+                 <div className="flex items-center justify-between p-6 bg-emerald-50 rounded-[32px] border border-emerald-100">
+                    <div className="flex items-center space-x-4">
+                       <div className="p-3 bg-white rounded-2xl shadow-sm text-emerald-600"><CloudLightning size={24} /></div>
+                       <div>
+                          <p className="text-sm font-black text-emerald-800">Trạng thái mạng lưới</p>
+                          <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mt-0.5">
+                            {storeConfig.syncKey ? 'Đã kích hoạt đồng bộ' : 'Đang hoạt động Offline'}
+                          </p>
+                       </div>
+                    </div>
+                    {storeConfig.syncKey && (
+                      <div className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-emerald-100">
+                         <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                         <span className="text-[10px] font-black text-emerald-600 uppercase">Live Syncing</span>
+                      </div>
+                    )}
+                 </div>
+              </div>
+           </section>
+        </div>
+      ) : activeTab === 'store' ? (
         <div className="space-y-8 animate-in slide-in-from-bottom-2">
            <section className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-6 md:p-10 space-y-8 overflow-hidden">
               <div className="flex items-center space-x-5 border-b border-slate-50 pb-8">

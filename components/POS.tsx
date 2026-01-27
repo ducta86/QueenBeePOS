@@ -1,19 +1,16 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useStore } from '../store';
-import { db, generateId } from '../db';
-import { 
-  Search, Plus, Minus, Trash2, User, ShoppingCart,
-  Printer, X, QrCode, DollarSign, ChevronDown, 
-  Barcode, CheckCircle, OctagonAlert, Wallet,
-  Package, Tag, UserX, FileDown, FileImage, 
-  PackageSearch, 
-  RefreshCw,
-  Loader2
-} from 'lucide-react';
-import { Product, Customer, OrderItem } from '../types';
-import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { 
+  Barcode, CheckCircle, ChevronDown, DollarSign, FileDown, FileImage, 
+  Loader2, Minus, OctagonAlert, Package, PackageSearch, Plus, Printer, 
+  QrCode, RefreshCw, ShoppingCart, Tag, Trash2, User, UserX, Wallet, X,
+  Search
+} from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { db, generateId } from '../db';
+import { useStore } from '../store';
+import { Customer, OrderItem, Product } from '../types';
+import html2canvas from 'html2canvas';
 
 type PrintSize = '58mm' | '80mm' | 'A4';
 
@@ -233,7 +230,7 @@ const POS = () => {
         @media print {
           body * { visibility: hidden; }
           #printable-invoice, #printable-invoice * { visibility: visible; }
-          #printable-invoice { position: absolute; left: 0; top: 0; width: 100% !important; background: white !important; margin: 0; padding: 10mm; }
+          #printable-invoice { position: absolute; left: 0; top: 0; width: 100% !important; background: white !important; margin: 0; padding: 0; }
         }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
@@ -596,56 +593,74 @@ const POS = () => {
                 </button>
              </div>
              <div className="flex-1 bg-slate-900 md:p-10 overflow-y-auto scrollbar-hide flex items-start justify-center p-6">
-                <div id="printable-invoice" ref={invoiceAreaRef} className={`bg-white shadow-2xl transition-all origin-top text-slate-900 p-10 font-sans ${printSize === '58mm' ? 'w-[58mm] text-[10px]' : printSize === '80mm' ? 'w-[80mm] text-[12px]' : 'w-[210mm] min-h-[297mm] text-[14px]'}`} style={{ fontFamily: "'Inter', sans-serif" }}>
-                   <div className="text-center space-y-1 border-b-2 border-slate-900 pb-5 mb-5">
-                      <h1 className="text-xl font-black uppercase tracking-tighter leading-none mb-1">{storeConfig.name}</h1>
-                      <p className="font-bold opacity-80 italic text-[0.8em] leading-tight">{storeConfig.address}</p>
-                      <p className="font-bold opacity-80 italic text-[0.8em] leading-tight">Hotline: {storeConfig.phone}</p>
+                <div id="printable-invoice" ref={invoiceAreaRef} className={`bg-white shadow-2xl transition-all origin-top text-slate-900 font-sans ${
+                  printSize === '58mm' ? 'w-[58mm] p-4 text-[10px]' : 
+                  printSize === '80mm' ? 'w-[80mm] p-6 text-[12px]' : 
+                  'w-[210mm] p-10 min-h-[297mm] text-[14px]'
+                }`} style={{ fontFamily: "'Inter', sans-serif" }}>
+                   <div className="text-center space-y-1 border-b-2 border-slate-900 pb-4 mb-4">
+                      <h1 className={`${printSize === '58mm' ? 'text-sm' : 'text-xl'} font-black uppercase tracking-tighter leading-none mb-1`}>{storeConfig.name}</h1>
+                      <p className="font-bold opacity-80 italic text-[0.85em] leading-tight">{storeConfig.address}</p>
+                      <p className="font-bold opacity-80 italic text-[0.85em] leading-tight">Hotline: {storeConfig.phone}</p>
                    </div>
                    <div className="text-center mb-6">
-                      <h2 className="text-lg font-black uppercase tracking-widest">HÓA ĐƠN BÁN HÀNG</h2>
+                      <h2 className={`${printSize === '58mm' ? 'text-xs' : 'text-lg'} font-black uppercase tracking-widest`}>HÓA ĐƠN BÁN HÀNG</h2>
                       <p className="text-[0.8em] font-mono mt-2 opacity-50 uppercase tracking-widest">MÃ: {lastOrder.id}</p>
                    </div>
-                   <div className="space-y-1.5 mb-8 text-[0.9em]">
-                      <div className="flex justify-between border-b border-slate-100 pb-1"><span>Khách hàng:</span> <span className="font-black uppercase">{lastOrder.customerName}</span></div>
-                      <div className="flex justify-between border-b border-slate-100 pb-1"><span>Thời gian:</span> <span>{new Date(lastOrder.updatedAt).toLocaleString('vi-VN')}</span></div>
+                   <div className="space-y-1.5 mb-6 text-[0.9em]">
+                      <div className="flex justify-between border-b border-slate-100 pb-1 gap-2">
+                        <span className="shrink-0">Khách hàng:</span> 
+                        <span className="font-black uppercase text-right truncate">{lastOrder.customerName}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1 gap-2">
+                        <span className="shrink-0">Thời gian:</span> 
+                        <span className="text-right whitespace-nowrap">{new Date(lastOrder.updatedAt).toLocaleString('vi-VN')}</span>
+                      </div>
                    </div>
-                   <table className="w-full mb-8 text-[0.9em]">
+                   <table className="w-full mb-6 text-[0.9em]">
                       <thead className="border-b-2 border-slate-900">
                          <tr>
                             <th className="text-left py-2 uppercase font-black">Sản phẩm</th>
-                            <th className="text-center py-2 uppercase font-black">Số lượng</th>
+                            <th className="text-center py-2 uppercase font-black px-1">SL</th>
                             <th className="text-right py-2 uppercase font-black">T.Tiền</th>
                          </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                          {lastOrder.items.map((item: any) => (
                            <tr key={item.id}>
-                              <td className="py-2.5 font-bold leading-tight align-top">{item.name}</td>
-                              <td className="py-2.5 text-center align-top font-bold">{item.qty}</td>
-                              <td className="py-2.5 text-right font-black tracking-tighter align-top">{item.total.toLocaleString()}đ</td>
+                              <td className="py-2 font-bold leading-tight align-top pr-1">{item.name}</td>
+                              <td className="py-2 text-center align-top font-bold">{item.qty}</td>
+                              <td className="py-2 text-right font-black tracking-tighter align-top whitespace-nowrap">{item.total.toLocaleString()}đ</td>
                            </tr>
                          ))}
                       </tbody>
                    </table>
-                   <div className="space-y-1.5 pt-5 border-t-2 border-slate-900">
-                      <div className="flex justify-between text-[0.9em]">
-                         <span>Tạm tính:</span>
-                         <span className="font-bold">{lastOrder.subTotal.toLocaleString()}đ</span>
+                   <div className="space-y-1 pt-4 border-t-2 border-slate-900">
+                      <div className="flex justify-between text-[0.9em] items-baseline gap-2">
+                         <span className="whitespace-nowrap shrink-0">Tạm tính:</span>
+                         <span className="font-bold whitespace-nowrap">{lastOrder.subTotal.toLocaleString()}đ</span>
                       </div>
                       {lastOrder.discountAmt > 0 && (
-                        <div className="flex justify-between text-[0.9em] text-rose-600 italic">
-                           <span>Chiết khấu {lastOrder.discountType === 'percentage' ? `(${lastOrder.discount}%)` : ''}:</span>
-                           <span className="font-bold">-{lastOrder.discountAmt.toLocaleString()}đ</span>
+                        <div className="flex justify-between text-[0.9em] text-rose-600 italic items-baseline gap-2">
+                           <span className="whitespace-nowrap shrink-0">{printSize === '58mm' ? 'C.khấu' : 'Chiết khấu'} {lastOrder.discountType === 'percentage' ? `(${lastOrder.discount}%)` : ''}:</span>
+                           <span className="font-bold whitespace-nowrap">-{lastOrder.discountAmt.toLocaleString()}đ</span>
                         </div>
                       )}
-                      <div className="flex justify-between text-base font-black uppercase tracking-widest pt-4 border-t border-slate-100 mt-2">
-                         <span>Tổng thanh toán:</span>
-                         <span className="text-rose-600 tracking-tighter text-lg">{lastOrder.total.toLocaleString()}đ</span>
+                      <div className={`flex justify-between items-baseline pt-3 border-t border-slate-100 mt-2 font-black uppercase gap-2 ${
+                        printSize === '58mm' ? 'text-[11px]' : 
+                        printSize === '80mm' ? 'text-[13px]' : 
+                        'text-base'
+                      }`}>
+                         <span className="whitespace-nowrap shrink-0">Tổng thanh toán:</span>
+                         <span className={`text-rose-600 tracking-tighter whitespace-nowrap ${
+                           printSize === '58mm' ? 'text-[13px]' : 
+                           printSize === '80mm' ? 'text-base' : 
+                           'text-lg'
+                         }`}>{lastOrder.total.toLocaleString()}đ</span>
                       </div>
                    </div>
-                   <div className="mt-16 text-center border-t border-dashed border-slate-300 pt-8 space-y-2">
-                      <p className="font-black italic uppercase text-[0.9em] tracking-widest leading-none">CẢMƠN QUÝ KHÁCH HÀNG!</p>
+                   <div className="mt-12 text-center border-t border-dashed border-slate-300 pt-6 space-y-2">
+                      <p className="font-black italic uppercase text-[0.9em] tracking-widest leading-none">CẢM ƠN QUÝ KHÁCH HÀNG!</p>
                    </div>
                 </div>
              </div>

@@ -47,9 +47,9 @@ interface AppState {
 }
 
 const DEFAULT_STORE_CONFIG: StoreConfig = {
-  name: 'Elite POS System',
-  address: '123 Đường Công Nghệ, TP. HCM',
-  phone: '0900.000.000',
+  name: 'QueenBee POS System',
+  address: '86 Phù Nghĩa, P. Nam Định, T. Ninh Bình',
+  phone: '0943.678.493',
   costPriceTypeId: 'pt-retail',
   lowStockThreshold: 10,
   bankId: 'MB',

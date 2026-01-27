@@ -12,7 +12,7 @@ export const useSync = () => {
   );
   
   const [unsyncedCount, setUnsyncedCount] = useState({
-    products: 0, orders: 0, customers: 0, users: 0
+    products: 0, orders: 0, customers: 0, users: 0, purchases: 0
   });
 
   const backendUrl = storeConfig.backendUrl?.replace(/\/$/, '');
@@ -38,9 +38,16 @@ export const useSync = () => {
     const oCount = await db.orders.where('synced').equals(0).count();
     const cCount = await db.customers.where('synced').equals(0).count();
     const uCount = await db.users.where('synced').equals(0).count();
+    const puCount = await db.purchases.where('synced').equals(0).count();
     
-    setUnsyncedCount({ products: pCount, orders: oCount, customers: cCount, users: uCount });
-    return pCount + oCount + cCount + uCount;
+    setUnsyncedCount({ 
+      products: pCount, 
+      orders: oCount, 
+      customers: cCount, 
+      users: uCount,
+      purchases: puCount 
+    });
+    return pCount + oCount + cCount + uCount + puCount;
   }, []);
 
   const syncCollection = async (tableName: string, collectionName: string) => {
@@ -134,6 +141,7 @@ export const useSync = () => {
       await syncCollection('products', 'products');
       await syncCollection('customers', 'customers');
       await syncCollection('orders', 'orders');
+      await syncCollection('purchases', 'purchases');
 
       const now = Date.now();
       setLastSync(now);

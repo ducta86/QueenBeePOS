@@ -21,7 +21,8 @@ import {
   CloudOff,
   CloudDownload,
   AlertCircle,
-  Users2
+  Users2,
+  Truck
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ProductManager from './components/ProductManager';
@@ -209,6 +210,7 @@ const AppContent = () => {
                         { label: 'Sản phẩm', count: unsyncedCount.products, icon: Package },
                         { label: 'Đơn hàng', count: unsyncedCount.orders, icon: FileText },
                         { label: 'Khách hàng', count: unsyncedCount.customers, icon: Users },
+                        { label: 'Phiếu nhập', count: unsyncedCount.purchases, icon: Truck },
                         { label: 'Nhân viên', count: unsyncedCount.users, icon: Users2 }
                       ].map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-slate-50 transition-colors">

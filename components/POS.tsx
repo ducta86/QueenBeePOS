@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../store';
-import { db } from '../db';
+import { db, generateId } from '../db';
 import { 
   Search, Plus, Minus, Trash2, User, ShoppingCart,
   Printer, X, QrCode, DollarSign, ChevronDown, 
@@ -16,14 +16,6 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 type PrintSize = '58mm' | '80mm' | 'A4';
-
-const generateShortId = (prefix: string) => {
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const datePart = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear().toString().slice(-2)}`;
-  const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `${prefix}-${datePart}-${timePart}`;
-};
 
 const POS = () => {
   const { products, customers, priceTypes, updateStock, setError, error, storeConfig } = useStore();
@@ -90,7 +82,7 @@ const POS = () => {
       }
       const price = currentPrices[product.id] || 0;
       setCart([...cart, {
-        id: Math.random().toString(36).substr(2, 9),
+        id: generateId(),
         productId: product.id,
         qty: 1,
         price,
@@ -151,12 +143,12 @@ const POS = () => {
 
   const handleOpenPayment = () => {
     if (cart.length === 0) return;
-    setTempOrderId(generateShortId('DH'));
+    setTempOrderId(generateId());
     setShowPaymentModal(true);
   };
 
   const handleCheckout = async () => {
-    const finalOrderId = tempOrderId || generateShortId('DH');
+    const finalOrderId = tempOrderId || generateId();
     const finalCashReceived = paymentMethod === 'qr' ? total : (parseNumber(cashReceived) || total);
     
     const order = {

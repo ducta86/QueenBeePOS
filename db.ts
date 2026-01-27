@@ -3,6 +3,16 @@ import { Dexie, type Table } from 'dexie';
 import { Product, ProductPrice, PriceType, Customer, CustomerType, Order, Purchase, ProductGroup, User } from './types';
 import { argon2id } from 'hash-wasm';
 
+// Hàm tạo ID tương thích hoàn toàn với PocketBase (15 ký tự, a-z0-9)
+export const generateId = (): string => {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 15; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
 export const generateSalt = (): string => {
   const array = new Uint8Array(16);
   window.crypto.getRandomValues(array);
@@ -64,7 +74,7 @@ export const seedDatabase = async () => {
     const salt = generateSalt();
     const defaultPwHash = await hashPassword('user@123', salt);
     await db.users.put({
-      id: 'user-default',
+      id: 'admin0000000001', // Đổi về 15 ký tự
       username: 'admin',
       passwordHash: defaultPwHash,
       passwordSalt: salt,
@@ -78,36 +88,36 @@ export const seedDatabase = async () => {
 
   const count = await db.priceTypes.count();
   if (count === 0) {
-    const p1 = 'pt-retail';
-    const p2 = 'pt-wholesale';
+    const p1 = 'retail000000001';
+    const p2 = 'wholesal0000001';
     
-    // Sử dụng bulkPut để tránh ConstraintError nếu key đã tồn tại
     await db.priceTypes.bulkPut([
       { id: p1, name: 'Giá bán lẻ', synced: 1, updatedAt: Date.now(), deleted: 0 },
       { id: p2, name: 'Giá bán sỉ', synced: 1, updatedAt: Date.now(), deleted: 0 }
     ]);
 
     await db.productGroups.bulkPut([
-      { id: 'pg-1', name: 'Điện thoại', synced: 1, updatedAt: Date.now(), deleted: 0 },
-      { id: 'pg-2', name: 'Laptop', synced: 1, updatedAt: Date.now(), deleted: 0 },
-      { id: 'pg-3', name: 'Phụ kiện', synced: 1, updatedAt: Date.now(), deleted: 0 }
+      { id: 'group0000000001', name: 'Điện thoại', synced: 1, updatedAt: Date.now(), deleted: 0 },
+      { id: 'group0000000002', name: 'Laptop', synced: 1, updatedAt: Date.now(), deleted: 0 },
+      { id: 'group0000000003', name: 'Phụ kiện', synced: 1, updatedAt: Date.now(), deleted: 0 }
     ]);
 
-    const ct1 = 'ct-normal';
-    const ct2 = 'ct-vip';
+    const ct1 = 'type00000000001';
+    const ct2 = 'type00000000002';
 
     await db.customerTypes.bulkPut([
       { id: ct1, name: 'Khách lẻ', defaultPriceTypeId: p1 },
       { id: ct2, name: 'Khách VIP', defaultPriceTypeId: p2 }
     ]);
 
+    const sampleProdId = 'prod00000000001';
     await db.products.put({
-      id: 'P-SAMPLE1',
+      id: sampleProdId,
       name: 'iPhone 15 Pro Max',
       code: 'IP15PM',
       barcode: '88888888',
       image: 'https://images.unsplash.com/photo-1696446701796-da61225697cc?w=400',
-      groupId: 'pg-1',
+      groupId: 'group0000000001',
       unit: 'Cái',
       lineId: 'apple',
       stock: 50,
@@ -118,12 +128,12 @@ export const seedDatabase = async () => {
     });
 
     await db.productPrices.bulkPut([
-      { id: 'PP-S1', productId: 'P-SAMPLE1', priceTypeId: p1, price: 34000000, synced: 1, updatedAt: Date.now(), deleted: 0 },
-      { id: 'PP-S2', productId: 'P-SAMPLE1', priceTypeId: p2, price: 32000000, synced: 1, updatedAt: Date.now(), deleted: 0 }
+      { id: 'price0000000001', productId: sampleProdId, priceTypeId: p1, price: 34000000, synced: 1, updatedAt: Date.now(), deleted: 0 },
+      { id: 'price0000000002', productId: sampleProdId, priceTypeId: p2, price: 32000000, synced: 1, updatedAt: Date.now(), deleted: 0 }
     ]);
 
     await db.customers.put({
-      id: 'C-WALKIN',
+      id: 'cust00000000001',
       name: 'Nguyễn Văn A',
       phone: '0901234567',
       birthday: '',

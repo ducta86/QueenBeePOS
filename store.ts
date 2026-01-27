@@ -1,13 +1,8 @@
 
 import { create } from 'zustand';
-import { db, hashPassword, generateSalt } from './db';
+import { db, hashPassword, generateSalt, generateId } from './db';
 import { Product, Customer, Order, PriceType, ProductPrice, ProductGroup, CustomerType, LoyaltyConfig, StoreConfig, Purchase, User, UserRole } from './types';
 import { Dexie } from 'dexie';
-
-// Helper tạo ID mạnh mẽ hơn để tránh trùng lặp
-const generateUniqueId = (prefix: string) => {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
 
 interface AppState {
   currentUser: User | null;
@@ -125,7 +120,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addUser: async (username, fullName, role, passwordPlain) => {
-    const id = generateUniqueId('user');
+    const id = generateId();
     const salt = generateSalt();
     const passwordHash = await hashPassword(passwordPlain, salt);
     
@@ -172,7 +167,7 @@ export const useStore = create<AppState>((set, get) => ({
     await (db as Dexie).transaction('rw', [db.products, db.productPrices], async () => {
       await db.products.add(product);
       const priceRecords: ProductPrice[] = prices.map(p => ({
-        id: generateUniqueId('pp'),
+        id: generateId(),
         productId: product.id,
         priceTypeId: p.priceTypeId,
         price: p.price,
@@ -190,7 +185,7 @@ export const useStore = create<AppState>((set, get) => ({
       await db.products.put(product);
       await db.productPrices.where('productId').equals(product.id).delete();
       const priceRecords: ProductPrice[] = prices.map(p => ({
-        id: generateUniqueId('pp'),
+        id: generateId(),
         productId: product.id,
         priceTypeId: p.priceTypeId,
         price: p.price,
@@ -213,12 +208,12 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addPriceType: async (name) => {
-    const id = generateUniqueId('pt');
+    const id = generateId();
     await (db as Dexie).transaction('rw', [db.priceTypes, db.products, db.productPrices], async () => {
       await db.priceTypes.add({ id, name, updatedAt: Date.now(), synced: 0, deleted: 0 });
       const allProducts = await db.products.where('deleted').equals(0).toArray();
       const newPrices: ProductPrice[] = allProducts.map(p => ({
-        id: generateUniqueId('pp'),
+        id: generateId(),
         productId: p.id,
         priceTypeId: id,
         price: 0,
@@ -257,7 +252,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addProductGroup: async (name) => {
-    const id = generateUniqueId('pg');
+    const id = generateId();
     await db.productGroups.add({ id, name, updatedAt: Date.now(), synced: 0, deleted: 0 });
     const productGroups = await db.productGroups.toArray();
     set({ productGroups });

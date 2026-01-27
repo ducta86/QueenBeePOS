@@ -1,20 +1,12 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useStore } from '../store';
-import { db } from '../db';
+import { db, generateId } from '../db';
 import { 
   Search, Plus, Minus, Trash2, ShoppingCart, X, PackageSearch, 
   Barcode, Wallet, ArrowDownCircle, CheckCircle, PackagePlus, Box
 } from 'lucide-react';
 import { Product, PurchaseItem, Purchase } from '../types';
-
-const generateShortId = (prefix: string) => {
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const datePart = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear().toString().slice(-2)}`;
-  const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `${prefix}-${datePart}-${timePart}`;
-};
 
 const PurchaseManager = () => {
   const { products, addPurchase, storeConfig, priceTypes } = useStore();
@@ -44,7 +36,7 @@ const PurchaseManager = () => {
     } else {
       const cost = costPrices[product.id] || 0;
       const newItem: PurchaseItem = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: generateId(),
         productId: product.id,
         name: product.name,
         qty: 1,
@@ -73,7 +65,7 @@ const PurchaseManager = () => {
 
   const handleSavePurchase = async () => {
     if (cart.length === 0) return;
-    const purchaseId = generateShortId('PN');
+    const purchaseId = generateId();
     const purchase: Purchase = {
       id: purchaseId,
       supplierName: supplierName || 'Nhà cung cấp lẻ',

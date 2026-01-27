@@ -4,7 +4,7 @@ import { db } from '../db';
 import { useStore } from '../store';
 
 export const useSync = () => {
-  const { storeConfig } = useStore();
+  const { storeConfig, fetchInitialData } = useStore();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isServerOnline, setIsServerOnline] = useState(false);
   const [lastSync, setLastSync] = useState<number | null>(
@@ -22,10 +22,9 @@ export const useSync = () => {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 2000);
-      // PocketBase không có /api/health mặc định, dùng list records profiles (kể cả lỗi 403 vẫn là server online)
       const resp = await fetch(`${backendUrl}/api/collections/profiles/records?perPage=1`, { signal: controller.signal });
       clearTimeout(id);
-      const online = resp.status < 500; // 2xx, 4xx đều coi là server đang sống
+      const online = resp.status < 500;
       setIsServerOnline(online);
       return online;
     } catch (e) {
@@ -48,40 +47,55 @@ export const useSync = () => {
     if (!backendUrl) return;
     const table = (db as any)[tableName];
     
-    // 1. PUSH: Đẩy dữ liệu cục bộ mới lên Server
     const unsynced = await table.where('synced').equals(0).toArray();
     for (const item of unsynced) {
       try {
-        // Kiểm tra record tồn tại trên PB chưa bằng ID
-        const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${item.id}`);
-        const exists = checkResp.ok;
+        const { synced, deleted, id: localId, ...payload } = item;
         
-        const method = exists ? 'PATCH' : 'POST';
+        // Kiểm tra xem ID cục bộ có đúng định dạng PocketBase (15 ký tự, alphanumeric) không
+        const isIdValid = /^[a-z0-9]{15}$/.test(localId);
+        
+        let exists = false;
+        if (isIdValid) {
+          const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
+          exists = checkResp.ok;
+        }
+
         const url = exists 
-          ? `${backendUrl}/api/collections/${collectionName}/records/${item.id}` 
+          ? `${backendUrl}/api/collections/${collectionName}/records/${localId}` 
           : `${backendUrl}/api/collections/${collectionName}/records`;
 
-        // Chuẩn bị payload (loại bỏ trường synced, deleted)
-        const { synced, deleted, ...payload } = item;
+        const method = exists ? 'PATCH' : 'POST';
         
+        // Nếu ID không hợp lệ định dạng PB, chúng ta bỏ qua trường id khi POST để PB tự sinh ID mới
+        const body = method === 'POST' && !isIdValid ? payload : { id: localId, ...payload };
+
         const response = await fetch(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(body)
         });
 
         if (response.ok) {
-          await table.update(item.id, { synced: 1 });
+          const remoteRecord = await response.json();
+          
+          // Nếu PB sinh ID mới (do ID cũ sai định dạng), chúng ta cần cập nhật ID cục bộ
+          if (!exists && remoteRecord.id !== localId) {
+            await table.delete(localId);
+            await table.put({ ...remoteRecord, synced: 1, updatedAt: new Date(remoteRecord.updated).getTime(), deleted: 0 });
+            console.log(`[Sync] ID Migrated: ${localId} -> ${remoteRecord.id}`);
+          } else {
+            await table.update(localId, { synced: 1 });
+          }
         } else {
           const errData = await response.json();
-          console.warn(`[Sync Failed] ${collectionName}:`, errData);
+          console.error(`[Sync Error] ${collectionName}:`, errData);
         }
       } catch (err) {
-        console.warn(`[Sync Network Error] ${collectionName}:`, err);
+        console.warn(`[Sync Error] ${collectionName}:`, err);
       }
     }
 
-    // 2. PULL: Lấy dữ liệu mới từ Server về máy
     const lastSyncDate = lastSync ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] : '2000-01-01 00:00:00';
     const filter = `updated > "${lastSyncDate}"`;
     const pullUrl = `${backendUrl}/api/collections/${collectionName}/records?filter=${encodeURIComponent(filter)}&perPage=500`;
@@ -99,7 +113,7 @@ export const useSync = () => {
               ...record, 
               synced: 1, 
               updatedAt: remoteUpdatedTs,
-              deleted: 0 // Giả định record lấy về là không bị xóa
+              deleted: 0
             });
           }
         }
@@ -112,14 +126,10 @@ export const useSync = () => {
   const syncData = async () => {
     if (isSyncing || !backendUrl) return;
     const isOnline = await checkServerHealth();
-    if (!isOnline) {
-      console.warn("Máy chủ PocketBase không phản hồi. Đồng bộ bị hoãn.");
-      return;
-    }
+    if (!isOnline) return;
 
     setIsSyncing(true);
     try {
-      // Đồng bộ theo thứ tự quan hệ dữ liệu
       await syncCollection('users', 'profiles');
       await syncCollection('products', 'products');
       await syncCollection('customers', 'customers');
@@ -129,8 +139,9 @@ export const useSync = () => {
       setLastSync(now);
       localStorage.setItem('last_sync_ts', now.toString());
       await checkUnsynced();
+      await fetchInitialData(); // Làm mới dữ liệu store sau khi Migration ID
     } catch (error) {
-      console.error('Toàn trình đồng bộ thất bại:', error);
+      console.error('Sync failed:', error);
     } finally {
       setIsSyncing(false);
     }
@@ -139,7 +150,6 @@ export const useSync = () => {
   useEffect(() => {
     checkUnsynced();
     checkServerHealth();
-    // Tự động kiểm tra sức khỏe server và đồng bộ mỗi 60s
     const interval = setInterval(async () => {
       const online = await checkServerHealth();
       if (online) await syncData();

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
-import { db } from '../db';
+import { db, generateId } from '../db';
 import { 
   Search, 
   UserPlus, 
@@ -31,10 +31,6 @@ import {
 } from 'lucide-react';
 import { Customer } from '../types';
 import * as XLSX from 'xlsx';
-
-const generateShortId = (prefix: string) => {
-  return `${prefix}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-};
 
 const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', showConfirm = true }: any) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -168,7 +164,7 @@ const CustomerManager = () => {
             });
             updatedCount++;
           } else {
-            const newId = generateShortId('C');
+            const newId = generateId();
             await db.customers.add({
               id: newId, name, phone, typeId, 
               totalSpent: Number(row['Tổng chi tiêu'] || 0),
@@ -216,7 +212,7 @@ const CustomerManager = () => {
         return;
     }
 
-    const customerId = editingCustomer ? editingCustomer.id : generateShortId('C');
+    const customerId = editingCustomer ? editingCustomer.id : generateId();
     const payload: Customer = {
       id: customerId,
       ...formData,

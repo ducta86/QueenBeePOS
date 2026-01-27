@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
-import { db } from '../db';
+import { db, generateId } from '../db';
 import { 
   Search, 
   Plus, 
@@ -28,14 +28,6 @@ import {
 } from 'lucide-react';
 import { Product, ProductPrice } from '../types';
 import * as XLSX from 'xlsx';
-
-const generateShortId = (prefix: string) => {
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const datePart = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${now.getFullYear().toString().slice(-2)}`;
-  const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `${prefix}-${datePart}-${timePart}`;
-};
 
 const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', showConfirm = true }: any) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -99,7 +91,6 @@ const ProductManager = () => {
         stock: editingProduct.stock
       });
       
-      // Kiểm tra xem sản phẩm đã có đơn hàng chưa
       db.orders.filter(o => o.items.some(i => i.productId === editingProduct.id)).count().then(count => {
         setHasOrders(count > 0);
       });
@@ -227,19 +218,19 @@ const ProductManager = () => {
             });
             await db.productPrices.where('productId').equals(existingProduct.id).delete();
             await db.productPrices.bulkAdd(pricePayload.map(pp => ({
-              id: `pp-${Math.random().toString(36).substr(2, 9)}`,
+              id: generateId(),
               productId: existingProduct!.id,
               ...pp
             })));
             updatedCount++;
           } else {
-            const newId = generateShortId('P');
+            const newId = generateId();
             await db.products.add({
               id: newId, name, code, barcode, groupId, unit, stock, 
               lineId: '', createdAt: Date.now(), updatedAt: Date.now(), synced: 0, deleted: 0
             });
             await db.productPrices.bulkAdd(pricePayload.map(pp => ({
-              id: `pp-${Math.random().toString(36).substr(2, 9)}`,
+              id: generateId(),
               productId: newId,
               ...pp
             })));
@@ -292,7 +283,7 @@ const ProductManager = () => {
       return;
     }
 
-    const productId = editingProduct ? editingProduct.id : generateShortId('P');
+    const productId = editingProduct ? editingProduct.id : generateId();
     const productPayload: Product = {
       id: productId,
       ...formData,
@@ -324,7 +315,6 @@ const ProductManager = () => {
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 pb-20">
-      {/* Notifications */}
       {(error || localError) && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[250] w-full max-w-md px-4 animate-in slide-in-from-top-4">
           <div className="bg-red-50 border border-red-200 p-5 rounded-3xl shadow-2xl flex items-center space-x-3 text-red-700">

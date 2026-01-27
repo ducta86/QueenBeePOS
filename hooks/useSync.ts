@@ -22,10 +22,12 @@ export const useSync = () => {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 2000);
-      const resp = await fetch(`${backendUrl}/api/health`, { signal: controller.signal });
+      // PocketBase không có /api/health mặc định, dùng list records profiles (kể cả lỗi 403 vẫn là server online)
+      const resp = await fetch(`${backendUrl}/api/collections/profiles/records?perPage=1`, { signal: controller.signal });
       clearTimeout(id);
-      setIsServerOnline(resp.ok);
-      return resp.ok;
+      const online = resp.status < 500; // 2xx, 4xx đều coi là server đang sống
+      setIsServerOnline(online);
+      return online;
     } catch (e) {
       setIsServerOnline(false);
       return false;
@@ -50,7 +52,7 @@ export const useSync = () => {
     const unsynced = await table.where('synced').equals(0).toArray();
     for (const item of unsynced) {
       try {
-        // Kiểm tra record tồn tại trên PB chưa
+        // Kiểm tra record tồn tại trên PB chưa bằng ID
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${item.id}`);
         const exists = checkResp.ok;
         
@@ -59,8 +61,8 @@ export const useSync = () => {
           ? `${backendUrl}/api/collections/${collectionName}/records/${item.id}` 
           : `${backendUrl}/api/collections/${collectionName}/records`;
 
-        // Chuẩn bị payload (loại bỏ trường synced trước khi gửi)
-        const { synced, ...payload } = item;
+        // Chuẩn bị payload (loại bỏ trường synced, deleted)
+        const { synced, deleted, ...payload } = item;
         
         const response = await fetch(url, {
           method,
@@ -70,14 +72,16 @@ export const useSync = () => {
 
         if (response.ok) {
           await table.update(item.id, { synced: 1 });
+        } else {
+          const errData = await response.json();
+          console.warn(`[Sync Failed] ${collectionName}:`, errData);
         }
       } catch (err) {
-        console.warn(`[Sync Push Error] ${collectionName}:`, err);
+        console.warn(`[Sync Network Error] ${collectionName}:`, err);
       }
     }
 
     // 2. PULL: Lấy dữ liệu mới từ Server về máy
-    // PocketBase sử dụng định dạng ISO cho thời gian
     const lastSyncDate = lastSync ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] : '2000-01-01 00:00:00';
     const filter = `updated > "${lastSyncDate}"`;
     const pullUrl = `${backendUrl}/api/collections/${collectionName}/records?filter=${encodeURIComponent(filter)}&perPage=500`;
@@ -88,14 +92,14 @@ export const useSync = () => {
         const result = await resp.json();
         for (const record of result.items) {
           const local = await table.get(record.id);
-          // Chuyển đổi format thời gian PB về timestamp để so sánh
           const remoteUpdatedTs = new Date(record.updated).getTime();
           
           if (!local || remoteUpdatedTs > (local.updatedAt || 0)) {
             await table.put({ 
               ...record, 
               synced: 1, 
-              updatedAt: remoteUpdatedTs 
+              updatedAt: remoteUpdatedTs,
+              deleted: 0 // Giả định record lấy về là không bị xóa
             });
           }
         }
@@ -108,11 +112,14 @@ export const useSync = () => {
   const syncData = async () => {
     if (isSyncing || !backendUrl) return;
     const isOnline = await checkServerHealth();
-    if (!isOnline) return;
+    if (!isOnline) {
+      console.warn("Máy chủ PocketBase không phản hồi. Đồng bộ bị hoãn.");
+      return;
+    }
 
     setIsSyncing(true);
     try {
-      // Đồng bộ theo thứ tự ưu tiên
+      // Đồng bộ theo thứ tự quan hệ dữ liệu
       await syncCollection('users', 'profiles');
       await syncCollection('products', 'products');
       await syncCollection('customers', 'customers');
@@ -131,9 +138,14 @@ export const useSync = () => {
 
   useEffect(() => {
     checkUnsynced();
-    // Tự động kiểm tra sức khỏe server mỗi 30s
-    const healthInterval = setInterval(checkServerHealth, 30000);
-    return () => clearInterval(healthInterval);
+    checkServerHealth();
+    // Tự động kiểm tra sức khỏe server và đồng bộ mỗi 60s
+    const interval = setInterval(async () => {
+      const online = await checkServerHealth();
+      if (online) await syncData();
+      else await checkUnsynced();
+    }, 60000);
+    return () => clearInterval(interval);
   }, [checkServerHealth]);
 
   return { 

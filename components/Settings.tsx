@@ -89,10 +89,11 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', s
   </div>
 );
 
+// Added AdminOnlyBadge component to resolve missing reference error
 const AdminOnlyBadge = () => (
-  <div className="flex items-center space-x-2 px-4 py-2 bg-[#FFF1F2] border border-[#FECDD3] rounded-full self-start">
-    <Lock size={14} className="text-[#E11D48]" />
-    <span className="text-[10px] font-black text-[#BE123C] uppercase tracking-widest">ADMIN ONLY</span>
+  <div className="flex items-center space-x-2 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 shadow-sm animate-in fade-in">
+    <Lock size={12} className="shrink-0" />
+    <span className="text-[10px] font-black uppercase tracking-widest">Chỉ dành cho Admin</span>
   </div>
 );
 
@@ -105,7 +106,7 @@ const Settings = () => {
     currentUser, users, addUser, updateUser, deleteUser, resetUserPassword
   } = useStore();
 
-  const { syncData, isSyncing, isServerOnline, totalUnsynced, lastSync } = useSync();
+  const { syncData, isSyncing, isServerOnline, totalUnsynced, lastSync, unsyncedCount } = useSync();
 
   const [activeTab, setActiveTab] = useState<'prices' | 'groups' | 'loyalty' | 'store' | 'printer' | 'account' | 'sync'>('prices');
   const [newValue, setNewValue] = useState('');
@@ -306,7 +307,13 @@ const Settings = () => {
             onClick={() => setActiveTab(tab)}
             className={`flex items-center justify-center space-x-2 px-5 py-3 rounded-2xl font-bold transition-all whitespace-nowrap flex-grow sm:flex-grow-0 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-50'}`}
           >
-            {tab === 'prices' ? <Tag size={18} /> : tab === 'groups' ? <Layers size={18} /> : tab === 'loyalty' ? <Crown size={18} /> : tab === 'store' ? <Store size={18} /> : tab === 'printer' ? <Printer size={18} /> : tab === 'account' ? <UserIcon size={18} /> : <Cloud size={18} />}
+            {tab === 'prices' && <Tag size={18} />}
+            {tab === 'groups' && <Layers size={18} />}
+            {tab === 'loyalty' && <Crown size={18} />}
+            {tab === 'store' && <Store size={18} />}
+            {tab === 'printer' && <Printer size={18} />}
+            {tab === 'account' && <UserIcon size={18} />}
+            {tab === 'sync' && <Cloud size={18} />}
             <span className="text-sm">
               {tab === 'prices' ? 'Loại giá' : tab === 'groups' ? 'Nhóm hàng' : tab === 'loyalty' ? 'Thân thiết' : tab === 'store' ? 'Gian hàng' : tab === 'printer' ? 'Máy in' : tab === 'account' ? 'Tài khoản' : 'Kết nối'}
             </span>

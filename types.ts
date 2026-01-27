@@ -17,6 +17,15 @@ export interface User extends BaseEntity {
   lastLogin?: number;
 }
 
+// Added Bank interface to fix import errors in Settings.tsx
+export interface Bank {
+  id: string;
+  name: string;
+  logo: string;
+  shortName: string;
+  code: string;
+}
+
 export interface StoreConfig {
   name: string;
   address: string;
@@ -33,7 +42,8 @@ export interface StoreConfig {
   printerAutoPrint?: boolean;
   printerPaperSize?: '58mm' | '80mm' | 'A4';
   printerCopies?: number;
-  syncKey?: string; // Khóa đồng bộ đám mây
+  syncKey?: string; 
+  backendUrl?: string; // URL của PocketBase (VD: http://192.168.1.50:8090)
 }
 
 export interface Product extends BaseEntity {
@@ -48,13 +58,11 @@ export interface Product extends BaseEntity {
   createdAt: number;
 }
 
-export interface ProductGroup {
-  id: string;
+export interface ProductGroup extends BaseEntity {
   name: string;
 }
 
-export interface PriceType {
-  id: string;
+export interface PriceType extends BaseEntity {
   name: string;
 }
 
@@ -64,8 +72,7 @@ export interface CustomerType {
   defaultPriceTypeId: string;
 }
 
-export interface ProductPrice {
-  id: string;
+export interface ProductPrice extends BaseEntity {
   productId: string;
   priceTypeId: string;
   price: number;

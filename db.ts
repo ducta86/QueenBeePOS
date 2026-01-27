@@ -3,14 +3,12 @@ import { Dexie, type Table } from 'dexie';
 import { Product, ProductPrice, PriceType, Customer, CustomerType, Order, Purchase, ProductGroup, User } from './types';
 import { argon2id } from 'hash-wasm';
 
-// Hàm tạo Salt ngẫu nhiên 16 bytes
 export const generateSalt = (): string => {
   const array = new Uint8Array(16);
   window.crypto.getRandomValues(array);
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 };
 
-// Chuyển hex string sang Uint8Array
 const hexToUint8Array = (hex: string): Uint8Array => {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
@@ -19,14 +17,13 @@ const hexToUint8Array = (hex: string): Uint8Array => {
   return bytes;
 };
 
-// Helper mã hóa mật khẩu bằng Argon2id với salt tùy biến
 export const hashPassword = async (password: string, saltHex: string): Promise<string> => {
   return argon2id({
     password: password,
     salt: hexToUint8Array(saltHex), 
     parallelism: 1,
-    iterations: 3, // Tăng lên 3 để tăng độ khó
-    memorySize: 1024, // Tăng lên 1MB
+    iterations: 3, 
+    memorySize: 1024, 
     hashLength: 32,
     outputType: 'hex',
   });
@@ -45,17 +42,15 @@ export class POSDatabase extends Dexie {
 
   constructor() {
     super('POSDatabase');
-    // Nâng cấp lên version 9 để đảm bảo các chỉ mục mới cho bảng users được áp dụng triệt để
-    // Điều này khắc phục lỗi "KeyPath synced on object store users is not indexed"
-    (this as Dexie).version(9).stores({ 
+    (this as Dexie).version(10).stores({ 
       products: 'id, name, code, barcode, groupId, lineId, synced, updatedAt, deleted',
-      productPrices: 'id, productId, priceTypeId',
-      priceTypes: 'id, name',
-      productGroups: 'id, name',
+      productPrices: 'id, productId, priceTypeId, synced, updatedAt, deleted',
+      priceTypes: 'id, name, synced, updatedAt, deleted',
+      productGroups: 'id, name, synced, updatedAt, deleted',
       customers: 'id, name, phone, typeId, synced, updatedAt, deleted',
       customerTypes: 'id, name, defaultPriceTypeId',
       orders: 'id, customerId, status, synced, updatedAt, deleted',
-      purchases: 'id, supplierName, createdAt, deleted',
+      purchases: 'id, supplierName, createdAt, updatedAt, synced, deleted',
       users: 'id, username, role, synced, updatedAt, deleted'
     });
   }
@@ -68,7 +63,7 @@ export const seedDatabase = async () => {
   if (userCount === 0) {
     const salt = generateSalt();
     const defaultPwHash = await hashPassword('user@123', salt);
-    await db.users.add({
+    await db.users.put({
       id: 'user-default',
       username: 'admin',
       passwordHash: defaultPwHash,
@@ -86,26 +81,27 @@ export const seedDatabase = async () => {
     const p1 = 'pt-retail';
     const p2 = 'pt-wholesale';
     
-    await db.priceTypes.bulkAdd([
-      { id: p1, name: 'Giá bán lẻ' },
-      { id: p2, name: 'Giá bán sỉ' }
+    // Sử dụng bulkPut để tránh ConstraintError nếu key đã tồn tại
+    await db.priceTypes.bulkPut([
+      { id: p1, name: 'Giá bán lẻ', synced: 1, updatedAt: Date.now(), deleted: 0 },
+      { id: p2, name: 'Giá bán sỉ', synced: 1, updatedAt: Date.now(), deleted: 0 }
     ]);
 
-    await db.productGroups.bulkAdd([
-      { id: 'pg-1', name: 'Điện thoại' },
-      { id: 'pg-2', name: 'Laptop' },
-      { id: 'pg-3', name: 'Phụ kiện' }
+    await db.productGroups.bulkPut([
+      { id: 'pg-1', name: 'Điện thoại', synced: 1, updatedAt: Date.now(), deleted: 0 },
+      { id: 'pg-2', name: 'Laptop', synced: 1, updatedAt: Date.now(), deleted: 0 },
+      { id: 'pg-3', name: 'Phụ kiện', synced: 1, updatedAt: Date.now(), deleted: 0 }
     ]);
 
     const ct1 = 'ct-normal';
     const ct2 = 'ct-vip';
 
-    await db.customerTypes.bulkAdd([
+    await db.customerTypes.bulkPut([
       { id: ct1, name: 'Khách lẻ', defaultPriceTypeId: p1 },
       { id: ct2, name: 'Khách VIP', defaultPriceTypeId: p2 }
     ]);
 
-    await db.products.add({
+    await db.products.put({
       id: 'P-SAMPLE1',
       name: 'iPhone 15 Pro Max',
       code: 'IP15PM',
@@ -121,12 +117,12 @@ export const seedDatabase = async () => {
       deleted: 0
     });
 
-    await db.productPrices.bulkAdd([
-      { id: 'PP-S1', productId: 'P-SAMPLE1', priceTypeId: p1, price: 34000000 },
-      { id: 'PP-S2', productId: 'P-SAMPLE1', priceTypeId: p2, price: 32000000 }
+    await db.productPrices.bulkPut([
+      { id: 'PP-S1', productId: 'P-SAMPLE1', priceTypeId: p1, price: 34000000, synced: 1, updatedAt: Date.now(), deleted: 0 },
+      { id: 'PP-S2', productId: 'P-SAMPLE1', priceTypeId: p2, price: 32000000, synced: 1, updatedAt: Date.now(), deleted: 0 }
     ]);
 
-    await db.customers.add({
+    await db.customers.put({
       id: 'C-WALKIN',
       name: 'Nguyễn Văn A',
       phone: '0901234567',

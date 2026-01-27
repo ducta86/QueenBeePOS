@@ -4,6 +4,11 @@ import { db, hashPassword, generateSalt } from './db';
 import { Product, Customer, Order, PriceType, ProductPrice, ProductGroup, CustomerType, LoyaltyConfig, StoreConfig, Purchase, User, UserRole } from './types';
 import { Dexie } from 'dexie';
 
+// Helper tạo ID mạnh mẽ hơn để tránh trùng lặp
+const generateUniqueId = (prefix: string) => {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 interface AppState {
   currentUser: User | null;
   users: User[];
@@ -20,11 +25,9 @@ interface AppState {
   fetchInitialData: () => Promise<void>;
   setError: (msg: string | null) => void;
   
-  // Auth Actions
   login: (username: string, passwordPlain: string) => Promise<boolean>;
   logout: () => void;
   
-  // User Management Actions
   addUser: (username: string, fullName: string, role: UserRole, passwordPlain: string) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
@@ -104,7 +107,6 @@ export const useStore = create<AppState>((set, get) => ({
   login: async (username, passwordPlain) => {
     const user = await db.users.where('username').equals(username.toLowerCase()).first();
     if (user && user.deleted === 0) {
-      // Thực hiện băm mật khẩu nhập vào bằng Salt của user đó
       const inputHash = await hashPassword(passwordPlain, user.passwordSalt);
       if (inputHash === user.passwordHash) {
         const sessionUser = { ...user, lastLogin: Date.now() };
@@ -123,7 +125,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addUser: async (username, fullName, role, passwordPlain) => {
-    const id = `user-${Math.random().toString(36).substr(2, 9)}`;
+    const id = generateUniqueId('user');
     const salt = generateSalt();
     const passwordHash = await hashPassword(passwordPlain, salt);
     
@@ -170,10 +172,13 @@ export const useStore = create<AppState>((set, get) => ({
     await (db as Dexie).transaction('rw', [db.products, db.productPrices], async () => {
       await db.products.add(product);
       const priceRecords: ProductPrice[] = prices.map(p => ({
-        id: Math.random().toString(36).substr(2, 9),
+        id: generateUniqueId('pp'),
         productId: product.id,
         priceTypeId: p.priceTypeId,
-        price: p.price
+        price: p.price,
+        updatedAt: Date.now(),
+        synced: 0,
+        deleted: 0
       }));
       await db.productPrices.bulkAdd(priceRecords);
     });
@@ -185,10 +190,13 @@ export const useStore = create<AppState>((set, get) => ({
       await db.products.put(product);
       await db.productPrices.where('productId').equals(product.id).delete();
       const priceRecords: ProductPrice[] = prices.map(p => ({
-        id: Math.random().toString(36).substr(2, 9),
+        id: generateUniqueId('pp'),
         productId: product.id,
         priceTypeId: p.priceTypeId,
-        price: p.price
+        price: p.price,
+        updatedAt: Date.now(),
+        synced: 0,
+        deleted: 0
       }));
       await db.productPrices.bulkAdd(priceRecords);
     });
@@ -205,15 +213,18 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addPriceType: async (name) => {
-    const id = `pt-${Date.now()}`;
+    const id = generateUniqueId('pt');
     await (db as Dexie).transaction('rw', [db.priceTypes, db.products, db.productPrices], async () => {
-      await db.priceTypes.add({ id, name });
+      await db.priceTypes.add({ id, name, updatedAt: Date.now(), synced: 0, deleted: 0 });
       const allProducts = await db.products.where('deleted').equals(0).toArray();
       const newPrices: ProductPrice[] = allProducts.map(p => ({
-        id: `pp-${Math.random().toString(36).substr(2, 9)}`,
+        id: generateUniqueId('pp'),
         productId: p.id,
         priceTypeId: id,
-        price: 0
+        price: 0,
+        updatedAt: Date.now(),
+        synced: 0,
+        deleted: 0
       }));
       await db.productPrices.bulkAdd(newPrices);
     });
@@ -222,7 +233,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   updatePriceType: async (id, name) => {
-    await db.priceTypes.update(id, { name });
+    await db.priceTypes.update(id, { name, updatedAt: Date.now(), synced: 0 });
     const priceTypes = await db.priceTypes.toArray();
     set({ priceTypes });
   },
@@ -246,14 +257,14 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addProductGroup: async (name) => {
-    const id = `pg-${Date.now()}`;
-    await db.productGroups.add({ id, name });
+    const id = generateUniqueId('pg');
+    await db.productGroups.add({ id, name, updatedAt: Date.now(), synced: 0, deleted: 0 });
     const productGroups = await db.productGroups.toArray();
     set({ productGroups });
   },
 
   updateProductGroup: async (id, name) => {
-    await db.productGroups.update(id, { name });
+    await db.productGroups.update(id, { name, updatedAt: Date.now(), synced: 0 });
     const productGroups = await db.productGroups.toArray();
     set({ productGroups });
   },

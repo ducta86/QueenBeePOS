@@ -89,6 +89,13 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', s
   </div>
 );
 
+const AdminOnlyBadge = () => (
+  <div className="flex items-center space-x-2 px-4 py-2 bg-[#FFF1F2] border border-[#FECDD3] rounded-full self-start">
+    <Lock size={14} className="text-[#E11D48]" />
+    <span className="text-[10px] font-black text-[#BE123C] uppercase tracking-widest">ADMIN ONLY</span>
+  </div>
+);
+
 const Settings = () => {
   const { 
     priceTypes, addPriceType, updatePriceType, deletePriceType,
@@ -299,13 +306,7 @@ const Settings = () => {
             onClick={() => setActiveTab(tab)}
             className={`flex items-center justify-center space-x-2 px-5 py-3 rounded-2xl font-bold transition-all whitespace-nowrap flex-grow sm:flex-grow-0 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-50'}`}
           >
-            {tab === 'prices' && <Tag size={18} />}
-            {tab === 'groups' && <Layers size={18} />}
-            {tab === 'loyalty' && <Crown size={18} />}
-            {tab === 'store' && <Store size={18} />}
-            {tab === 'printer' && <Printer size={18} />}
-            {tab === 'account' && <UserIcon size={18} />}
-            {tab === 'sync' && <Cloud size={18} />}
+            {tab === 'prices' ? <Tag size={18} /> : tab === 'groups' ? <Layers size={18} /> : tab === 'loyalty' ? <Crown size={18} /> : tab === 'store' ? <Store size={18} /> : tab === 'printer' ? <Printer size={18} /> : tab === 'account' ? <UserIcon size={18} /> : <Cloud size={18} />}
             <span className="text-sm">
               {tab === 'prices' ? 'Loại giá' : tab === 'groups' ? 'Nhóm hàng' : tab === 'loyalty' ? 'Thân thiết' : tab === 'store' ? 'Gian hàng' : tab === 'printer' ? 'Máy in' : tab === 'account' ? 'Tài khoản' : 'Kết nối'}
             </span>
@@ -568,12 +569,7 @@ const Settings = () => {
                     </div>
                  </div>
                  
-                 {!isAdmin && (
-                   <div className="flex items-center space-x-2 px-4 py-2 bg-[#FFF1F2] border border-[#FECDD3] rounded-full self-start">
-                      <Lock size={14} className="text-[#E11D48]" />
-                      <span className="text-[10px] font-black text-[#BE123C] uppercase tracking-widest">ADMIN ONLY</span>
-                   </div>
-                 )}
+                 {!isAdmin && <AdminOnlyBadge />}
               </div>
 
               <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 ${!isAdmin ? 'opacity-70 pointer-events-none' : ''}`}>
@@ -623,12 +619,7 @@ const Settings = () => {
                     </div>
                  </div>
 
-                 {!isAdmin && (
-                    <div className="flex items-center space-x-2 px-4 py-2 bg-[#FFF1F2] border border-[#FECDD3] rounded-full self-start">
-                       <Lock size={14} className="text-[#E11D48]" />
-                       <span className="text-[10px] font-black text-[#BE123C] uppercase tracking-widest">ADMIN ONLY</span>
-                    </div>
-                 )}
+                 {!isAdmin && <AdminOnlyBadge />}
               </div>
 
               <div className={`grid grid-cols-1 md:grid-cols-3 gap-8 ${!isAdmin ? 'opacity-70 pointer-events-none' : ''}`}>

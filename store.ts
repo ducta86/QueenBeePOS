@@ -84,9 +84,9 @@ export const useStore = create<AppState>((set, get) => ({
     const users = await db.users.where('deleted').equals(0).toArray();
     const products = await db.products.where('deleted').equals(0).toArray();
     const customers = await db.customers.where('deleted').equals(0).toArray();
-    const priceTypes = await db.priceTypes.toArray();
+    const priceTypes = await db.priceTypes.where('deleted').equals(0).toArray();
     const customerTypes = await db.customerTypes.toArray();
-    const productGroups = await db.productGroups.toArray();
+    const productGroups = await db.productGroups.where('deleted').equals(0).toArray();
     
     const loyalty = JSON.parse(localStorage.getItem('loyalty_config') || '{"minSpend": 10000000, "minOrders": 10, "enabled": true}');
     const storeRaw = localStorage.getItem('store_config');
@@ -182,7 +182,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateProduct: async (product, prices) => {
     await (db as Dexie).transaction('rw', [db.products, db.productPrices], async () => {
-      await db.products.put(product);
+      await db.products.put({ ...product, synced: 0 });
       await db.productPrices.where('productId').equals(product.id).delete();
       const priceRecords: ProductPrice[] = prices.map(p => ({
         id: generateId(),
@@ -223,13 +223,13 @@ export const useStore = create<AppState>((set, get) => ({
       }));
       await db.productPrices.bulkAdd(newPrices);
     });
-    const priceTypes = await db.priceTypes.toArray();
+    const priceTypes = await db.priceTypes.where('deleted').equals(0).toArray();
     set({ priceTypes });
   },
 
   updatePriceType: async (id, name) => {
     await db.priceTypes.update(id, { name, updatedAt: Date.now(), synced: 0 });
-    const priceTypes = await db.priceTypes.toArray();
+    const priceTypes = await db.priceTypes.where('deleted').equals(0).toArray();
     set({ priceTypes });
   },
 
@@ -243,24 +243,21 @@ export const useStore = create<AppState>((set, get) => ({
       throw new Error("Deletion blocked");
     }
 
-    await (db as Dexie).transaction('rw', [db.priceTypes, db.productPrices], async () => {
-      await db.priceTypes.delete(id);
-      await db.productPrices.where('priceTypeId').equals(id).delete();
-    });
-    const priceTypes = await db.priceTypes.toArray();
+    await db.priceTypes.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
+    const priceTypes = await db.priceTypes.where('deleted').equals(0).toArray();
     set({ priceTypes });
   },
 
   addProductGroup: async (name) => {
     const id = generateId();
     await db.productGroups.add({ id, name, updatedAt: Date.now(), synced: 0, deleted: 0 });
-    const productGroups = await db.productGroups.toArray();
+    const productGroups = await db.productGroups.where('deleted').equals(0).toArray();
     set({ productGroups });
   },
 
   updateProductGroup: async (id, name) => {
     await db.productGroups.update(id, { name, updatedAt: Date.now(), synced: 0 });
-    const productGroups = await db.productGroups.toArray();
+    const productGroups = await db.productGroups.where('deleted').equals(0).toArray();
     set({ productGroups });
   },
 
@@ -271,8 +268,8 @@ export const useStore = create<AppState>((set, get) => ({
       setTimeout(() => set({ error: null }), 4000);
       return;
     }
-    await db.productGroups.delete(id);
-    const productGroups = await db.productGroups.toArray();
+    await db.productGroups.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
+    const productGroups = await db.productGroups.where('deleted').equals(0).toArray();
     set({ productGroups });
   },
 
@@ -282,7 +279,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   updateCustomer: async (customer) => {
-    await db.customers.put(customer);
+    await db.customers.put({ ...customer, synced: 0 });
     set((state) => ({
       customers: state.customers.map(c => c.id === customer.id ? customer : c)
     }));

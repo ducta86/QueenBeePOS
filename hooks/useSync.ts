@@ -54,19 +54,28 @@ export const useSync = () => {
     if (!backendUrl) return;
     const table = (db as any)[tableName];
     
-    const unsynced = await table.where('synced').equals(0).toArray();
-    for (const item of unsynced) {
+    const allLocalUnsynced = await table.where('synced').equals(0).toArray();
+    
+    for (const item of allLocalUnsynced) {
       try {
         const { synced, deleted, id: localId, ...payload } = item;
         
-        // Kiểm tra xem ID cục bộ có đúng định dạng PocketBase (15 ký tự, alphanumeric) không
-        const isIdValid = /^[a-z0-9]{15}$/.test(localId);
-        
-        let exists = false;
-        if (isIdValid) {
-          const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
-          exists = checkResp.ok;
+        // 1. Xử lý xóa trên Server
+        if (deleted === 1) {
+          const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, {
+            method: 'DELETE'
+          });
+          // Nếu đã xóa xong trên server (hoặc record không tồn tại trên server 404), xóa khỏi local DB
+          if (deleteResp.ok || deleteResp.status === 404) {
+            await table.delete(localId);
+          }
+          continue;
         }
+
+        // 2. Xử lý Đồng bộ (Add/Edit)
+        // Kiểm tra record tồn tại trên server bằng ID cục bộ (vì ID cục bộ đã là 15 ký tự chuẩn PB)
+        const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
+        const exists = checkResp.ok;
 
         const url = exists 
           ? `${backendUrl}/api/collections/${collectionName}/records/${localId}` 
@@ -74,8 +83,8 @@ export const useSync = () => {
 
         const method = exists ? 'PATCH' : 'POST';
         
-        // Nếu ID không hợp lệ định dạng PB, chúng ta bỏ qua trường id khi POST để PB tự sinh ID mới
-        const body = method === 'POST' && !isIdValid ? payload : { id: localId, ...payload };
+        // Luôn gửi kèm ID gốc để PocketBase không sinh ID mới lung tung
+        const body = { id: localId, ...payload };
 
         const response = await fetch(url, {
           method,
@@ -84,25 +93,17 @@ export const useSync = () => {
         });
 
         if (response.ok) {
-          const remoteRecord = await response.json();
-          
-          // Nếu PB sinh ID mới (do ID cũ sai định dạng), chúng ta cần cập nhật ID cục bộ
-          if (!exists && remoteRecord.id !== localId) {
-            await table.delete(localId);
-            await table.put({ ...remoteRecord, synced: 1, updatedAt: new Date(remoteRecord.updated).getTime(), deleted: 0 });
-            console.log(`[Sync] ID Migrated: ${localId} -> ${remoteRecord.id}`);
-          } else {
-            await table.update(localId, { synced: 1 });
-          }
+          await table.update(localId, { synced: 1 });
         } else {
           const errData = await response.json();
           console.error(`[Sync Error] ${collectionName}:`, errData);
         }
       } catch (err) {
-        console.warn(`[Sync Error] ${collectionName}:`, err);
+        console.warn(`[Sync Connection Error] ${collectionName}:`, err);
       }
     }
 
+    // 3. Pull dữ liệu mới từ Server về (Conflict resolution: Server wins)
     const lastSyncDate = lastSync ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] : '2000-01-01 00:00:00';
     const filter = `updated > "${lastSyncDate}"`;
     const pullUrl = `${backendUrl}/api/collections/${collectionName}/records?filter=${encodeURIComponent(filter)}&perPage=500`;
@@ -115,6 +116,7 @@ export const useSync = () => {
           const local = await table.get(record.id);
           const remoteUpdatedTs = new Date(record.updated).getTime();
           
+          // Chỉ cập nhật nếu local chưa có hoặc remote mới hơn
           if (!local || remoteUpdatedTs > (local.updatedAt || 0)) {
             await table.put({ 
               ...record, 
@@ -126,7 +128,7 @@ export const useSync = () => {
         }
       }
     } catch (err) {
-      console.error(`[Sync Pull Error] ${collectionName}:`, err);
+      console.error(`[Pull Error] ${collectionName}:`, err);
     }
   };
 
@@ -147,9 +149,9 @@ export const useSync = () => {
       setLastSync(now);
       localStorage.setItem('last_sync_ts', now.toString());
       await checkUnsynced();
-      await fetchInitialData(); // Làm mới dữ liệu store sau khi Migration ID
+      await fetchInitialData();
     } catch (error) {
-      console.error('Sync failed:', error);
+      console.error('Sync process failed:', error);
     } finally {
       setIsSyncing(false);
     }
@@ -164,7 +166,7 @@ export const useSync = () => {
       else await checkUnsynced();
     }, 60000);
     return () => clearInterval(interval);
-  }, [checkServerHealth]);
+  }, [checkServerHealth, syncData, checkUnsynced]);
 
   return { 
     syncData, 

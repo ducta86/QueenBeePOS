@@ -193,7 +193,7 @@ const Settings = () => {
         const newSalt = generateSalt();
         updatedUser.passwordSalt = newSalt;
         updatedUser.passwordHash = await hashPassword(newPassword, newSalt);
-        updatedUser.synced = 0; // Đánh dấu để đồng bộ lên PB
+        updatedUser.synced = 0;
       }
       await updateUser(updatedUser);
       setNewPassword('');
@@ -291,7 +291,7 @@ const Settings = () => {
           onConfirm={async () => {
             await deleteUser(userToDelete.id);
             setUserToDelete(null);
-            showToast("Đã xóa nhân viên.");
+            showToast("Xóa tài khoản nhân viên thành công.");
           }}
           onCancel={() => setUserToDelete(null)}
         />
@@ -494,7 +494,7 @@ const Settings = () => {
                                  <div className="flex items-center justify-end space-x-1">
                                     <button onClick={async () => {
                                       await resetUserPassword(user.id, 'user@123');
-                                      showToast(`Đã đặt lại mật khẩu cho ${user.fullName} thành: user@123`);
+                                      showToast(`Đặt lại mật khẩu cho ${user.fullName} thành công: user@123`);
                                     }} className="p-2.5 text-slate-300 hover:text-amber-600 hover:bg-white rounded-xl shadow-sm transition-all" title="Reset mật khẩu"><RotateCcw size={18} /></button>
                                     <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="p-2.5 text-slate-300 hover:text-indigo-600 hover:bg-white rounded-xl shadow-sm transition-all" title="Sửa"><Edit2 size={18} /></button>
                                     <button onClick={() => setUserToDelete(user)} disabled={user.id === currentUser?.id} className="p-2.5 text-slate-300 hover:text-red-600 hover:bg-white rounded-xl shadow-sm transition-all disabled:opacity-30" title="Xóa"><Trash2 size={18} /></button>
@@ -529,7 +529,7 @@ const Settings = () => {
                         <div className="flex gap-2 pt-2 border-t border-slate-200/50">
                            <button onClick={async () => {
                              await resetUserPassword(user.id, 'user@123');
-                             showToast("Đã đặt lại mật khẩu về mặc định.");
+                             showToast("Reset mật khẩu thành công.");
                            }} className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-amber-600 font-black text-[9px] uppercase">Reset Pass</button>
                            <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-indigo-600 font-black text-[9px] uppercase">Sửa</button>
                            <button onClick={() => setUserToDelete(user)} disabled={user.id === currentUser?.id} className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-red-500 font-black text-[9px] uppercase disabled:opacity-30">Xóa</button>
@@ -582,7 +582,6 @@ const Settings = () => {
         </div>
       ) : activeTab === 'store' ? (
         <div className="space-y-8 animate-in slide-in-from-bottom-2">
-           {/* Section 1: Hồ sơ gian hàng */}
            <section className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-6 md:p-10 overflow-hidden relative">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-10">
                  <div className="flex items-center space-x-6">
@@ -632,7 +631,6 @@ const Settings = () => {
               </div>
            </section>
 
-           {/* Section 2: Thanh toán VietQR */}
            <section className="bg-white rounded-[40px] border border-slate-100 shadow-sm p-6 md:p-10 overflow-hidden relative">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-10">
                  <div className="flex items-center space-x-6">
@@ -828,7 +826,6 @@ const Settings = () => {
            </section>
         </div>
       ) : (
-        /* Prices and Groups Tabs (Shared List Layout) */
         <div className="space-y-6">
           {activeTab === 'prices' && (
             <div className="p-6 bg-amber-50 rounded-[32px] border border-amber-100 flex flex-col md:flex-row items-center gap-6 animate-in slide-in-from-top-2 shadow-sm">
@@ -883,7 +880,15 @@ const Settings = () => {
                       ) : (
                         <div className="flex items-center gap-3 min-w-0 flex-1 flex-wrap md:flex-nowrap">
                           <div className="flex flex-col min-w-0 justify-center">
-                            <span className="font-black text-slate-800 text-sm md:text-base leading-none truncate">{item.name}</span>
+                            <div className="flex items-center space-x-2">
+                               <span className="font-black text-slate-800 text-sm md:text-base leading-none truncate">{item.name}</span>
+                               {item.synced === 0 && (
+                                 <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-100 flex items-center space-x-1 shrink-0">
+                                    <CloudOff size={8} />
+                                    <span className="text-[7px] font-black uppercase">Chưa đồng bộ</span>
+                                 </span>
+                               )}
+                            </div>
                             <p className="text-[9px] text-slate-400 font-mono uppercase tracking-tighter mt-1 whitespace-nowrap overflow-hidden">ID: {item.id}</p>
                           </div>
                           

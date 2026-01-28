@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { useStore } from '../store';
-import { Search, FileText, Calendar, User, CreditCard, Trash2, Eye, ShoppingBag, X, AlertTriangle, ReceiptText, Tag, ArrowUpRight, ArrowDownLeft, Store, ChevronRight } from 'lucide-react';
+import { Search, FileText, Calendar, User, CreditCard, Trash2, Eye, ShoppingBag, X, AlertTriangle, ReceiptText, Tag, ArrowUpRight, ArrowDownLeft, Store, ChevronRight, CloudOff } from 'lucide-react';
 import { Order, Purchase } from '../types';
 
 const ConfirmDialog = ({ title, message, onConfirm, onCancel }: any) => (
@@ -135,7 +135,15 @@ const OrderHistory = () => {
                         {activeTab === 'sales' ? <ReceiptText size={20} /> : <Store size={20} />}
                       </div>
                       <div>
-                        <div className="text-sm font-black text-slate-800 uppercase tracking-tight">{item.id}</div>
+                        <div className="flex items-center space-x-2">
+                           <div className="text-sm font-black text-slate-800 uppercase tracking-tight">{item.id}</div>
+                           {item.synced === 0 && (
+                             <span className="px-1 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-100 flex items-center space-x-1 shrink-0">
+                                <CloudOff size={8} />
+                                <span className="text-[7px] font-black uppercase">Chưa đồng bộ</span>
+                             </span>
+                           )}
+                        </div>
                         <div className="text-[10px] text-slate-400 flex items-center font-bold">
                           <Calendar size={12} className="mr-1" /> {formatDate(item.updatedAt || item.createdAt)}
                         </div>
@@ -181,7 +189,10 @@ const OrderHistory = () => {
                     {activeTab === 'sales' ? <ReceiptText size={20} /> : <Store size={20} />}
                  </div>
                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em]">{item.id}</p>
+                    <div className="flex items-center space-x-2">
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em]">{item.id}</p>
+                       {item.synced === 0 && <CloudOff size={10} className="text-amber-500" />}
+                    </div>
                     <p className="text-xs font-bold text-slate-400 mt-0.5">{formatDate(item.updatedAt || item.createdAt)}</p>
                  </div>
               </div>

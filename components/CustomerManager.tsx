@@ -27,7 +27,8 @@ import {
   Info,
   ChevronRight,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  CloudOff
 } from 'lucide-react';
 import { Customer } from '../types';
 import * as XLSX from 'xlsx';
@@ -342,6 +343,7 @@ const CustomerManager = () => {
                   {customer.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex items-center space-x-2">
+                  {customer.synced === 0 && <CloudOff size={16} className="text-amber-500" />}
                   <button onClick={() => { setEditingCustomer(customer); setIsModalOpen(true); }} className="p-2.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit2 size={18} /></button>
                   <button onClick={() => handleCheckDelete(customer.id)} className="p-2.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18} /></button>
                 </div>

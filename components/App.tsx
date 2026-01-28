@@ -56,12 +56,12 @@ const AppContent = () => {
 
   // Logic hiển thị tên gian hàng động ở logo
   const renderBrandName = () => {
-    const fullName = storeConfig?.name || 'Elite POS';
+    const fullName = storeConfig?.name || 'QueenBee POS';
     const words = fullName.trim().split(/\s+/);
     
     if (words.length <= 1) {
       return (
-        <span className="text-xl font-bold tracking-tight text-slate-800 truncate block">
+        <span className="text-xl font-bold tracking-tight text-slate-800 truncate block text-indigo-600">
           {fullName}
         </span>
       );
@@ -79,7 +79,7 @@ const AppContent = () => {
 
   // Lấy ký tự đại diện (Avatar) từ tên gian hàng
   const getInitials = () => {
-    const name = storeConfig?.name || 'Elite POS';
+    const name = storeConfig?.name || 'QueenBee POS';
     const words = name.trim().split(/\s+/);
     if (words.length >= 2) {
       return (words[0][0] + words[words.length - 1][0]).toUpperCase();
@@ -128,9 +128,9 @@ const AppContent = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-black text-slate-900 truncate">
-                  {storeConfig?.name || 'Admin Elite'}
+                  {storeConfig?.name || 'QueenBee POS'}
                 </p>
-                <p className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-widest">Quản trị viên</p>
+                <p className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-widest">Hệ thống QueenBee</p>
               </div>
               <LogOut size={18} className="text-slate-300 hover:text-red-500 cursor-pointer transition-colors" />
             </div>
@@ -146,7 +146,7 @@ const AppContent = () => {
           
           <div className="hidden md:flex items-center bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
-            <span className="text-xs font-bold text-slate-600">Hệ thống sẵn sàng</span>
+            <span className="text-xs font-bold text-slate-600">QueenBee Cloud Ready</span>
           </div>
 
           <div className="flex items-center space-x-4">

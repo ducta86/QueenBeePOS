@@ -54,7 +54,8 @@ import {
   Zap,
   Server,
   Globe,
-  Link as LinkIcon
+  Link as LinkIcon,
+  CloudOff
 } from 'lucide-react';
 import { User, UserRole, Bank } from '../types';
 
@@ -89,7 +90,6 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', s
   </div>
 );
 
-// Added AdminOnlyBadge component to resolve missing reference error
 const AdminOnlyBadge = () => (
   <div className="flex items-center space-x-2 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100 shadow-sm animate-in fade-in">
     <Lock size={12} className="shrink-0" />
@@ -193,6 +193,7 @@ const Settings = () => {
         const newSalt = generateSalt();
         updatedUser.passwordSalt = newSalt;
         updatedUser.passwordHash = await hashPassword(newPassword, newSalt);
+        updatedUser.synced = 0; // Đánh dấu để đồng bộ lên PB
       }
       await updateUser(updatedUser);
       setNewPassword('');
@@ -209,7 +210,7 @@ const Settings = () => {
     e.preventDefault();
     try {
       if (editingUser) {
-        await updateUser({ ...editingUser, fullName: userFormData.fullName, role: userFormData.role });
+        await updateUser({ ...editingUser, fullName: userFormData.fullName, role: userFormData.role, synced: 0 });
         showToast("Đã cập nhật nhân viên.");
       } else {
         const normalizedUsername = userFormData.username.toLowerCase().trim();
@@ -290,6 +291,7 @@ const Settings = () => {
           onConfirm={async () => {
             await deleteUser(userToDelete.id);
             setUserToDelete(null);
+            showToast("Đã xóa nhân viên.");
           }}
           onCancel={() => setUserToDelete(null)}
         />
@@ -426,7 +428,7 @@ const Settings = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Xác nhận mật khẩu</label>
-                    <input type="password" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-indigo-500 text-sm" placeholder="Nhập lại mật khẩu" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                    <input type="password" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Nhập lại mật khẩu" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -470,7 +472,15 @@ const Settings = () => {
                                        {user.fullName.substring(0, 2).toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
-                                       <p className="font-bold text-slate-800 truncate">{user.fullName}</p>
+                                       <div className="flex items-center space-x-2">
+                                         <p className="font-bold text-slate-800 truncate">{user.fullName}</p>
+                                         {user.synced === 0 && (
+                                           <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-100 flex items-center space-x-1 shrink-0">
+                                              <CloudOff size={8} />
+                                              <span className="text-[7px] font-black uppercase">Chưa đồng bộ</span>
+                                           </span>
+                                         )}
+                                       </div>
                                        <p className="text-[10px] text-slate-400 font-mono tracking-tighter">@{user.username}</p>
                                     </div>
                                  </div>
@@ -482,7 +492,10 @@ const Settings = () => {
                               </td>
                               <td className="px-10 py-5 text-right whitespace-nowrap">
                                  <div className="flex items-center justify-end space-x-1">
-                                    <button onClick={() => resetUserPassword(user.id, 'user@123')} className="p-2.5 text-slate-300 hover:text-amber-600 hover:bg-white rounded-xl shadow-sm transition-all" title="Reset mật khẩu"><RotateCcw size={18} /></button>
+                                    <button onClick={async () => {
+                                      await resetUserPassword(user.id, 'user@123');
+                                      showToast(`Đã đặt lại mật khẩu cho ${user.fullName} thành: user@123`);
+                                    }} className="p-2.5 text-slate-300 hover:text-amber-600 hover:bg-white rounded-xl shadow-sm transition-all" title="Reset mật khẩu"><RotateCcw size={18} /></button>
                                     <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="p-2.5 text-slate-300 hover:text-indigo-600 hover:bg-white rounded-xl shadow-sm transition-all" title="Sửa"><Edit2 size={18} /></button>
                                     <button onClick={() => setUserToDelete(user)} disabled={user.id === currentUser?.id} className="p-2.5 text-slate-300 hover:text-red-600 hover:bg-white rounded-xl shadow-sm transition-all disabled:opacity-30" title="Xóa"><Trash2 size={18} /></button>
                                  </div>
@@ -502,7 +515,10 @@ const Settings = () => {
                                  {user.fullName.substring(0, 2).toUpperCase()}
                               </div>
                               <div>
-                                 <p className="font-bold text-slate-800 text-sm leading-tight">{user.fullName}</p>
+                                 <div className="flex items-center space-x-2">
+                                   <p className="font-bold text-slate-800 text-sm leading-tight">{user.fullName}</p>
+                                   {user.synced === 0 && <CloudOff size={10} className="text-amber-500" />}
+                                 </div>
                                  <p className="text-[10px] text-slate-400 font-mono">@{user.username}</p>
                               </div>
                            </div>
@@ -511,7 +527,10 @@ const Settings = () => {
                            </span>
                         </div>
                         <div className="flex gap-2 pt-2 border-t border-slate-200/50">
-                           <button onClick={() => resetUserPassword(user.id, 'user@123')} className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-amber-600 font-black text-[9px] uppercase">Reset Pass</button>
+                           <button onClick={async () => {
+                             await resetUserPassword(user.id, 'user@123');
+                             showToast("Đã đặt lại mật khẩu về mặc định.");
+                           }} className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-amber-600 font-black text-[9px] uppercase">Reset Pass</button>
                            <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-indigo-600 font-black text-[9px] uppercase">Sửa</button>
                            <button onClick={() => setUserToDelete(user)} disabled={user.id === currentUser?.id} className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-red-500 font-black text-[9px] uppercase disabled:opacity-30">Xóa</button>
                         </div>

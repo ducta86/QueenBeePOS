@@ -24,7 +24,8 @@ import {
   Loader2,
   Info,
   ChevronRight,
-  Lock
+  Lock,
+  CloudOff
 } from 'lucide-react';
 import { Product, ProductPrice } from '../types';
 import * as XLSX from 'xlsx';
@@ -35,7 +36,7 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', s
       <div className={`w-16 h-16 mx-auto mb-6 rounded-full flex items-center justify-center ${type === 'danger' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
         {type === 'danger' ? <AlertTriangle size={32} /> : <Info size={32} />}
       </div>
-      <h3 className="text-xl font-bold text-slate-800 mb-2 uppercase">{title}</h3>
+      <h3 className="text-xl font-bold text-slate-800 mb-2 uppercase tracking-tight">{title}</h3>
       <p className="text-slate-500 mb-8 text-sm leading-relaxed">{message}</p>
       <div className="flex gap-3">
         <button onClick={onCancel} className="flex-1 py-4 font-bold text-slate-500 hover:bg-slate-50 rounded-2xl transition-all text-sm uppercase tracking-widest">
@@ -428,7 +429,15 @@ const ProductManager = () => {
                       {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <Package size={28} />}
                     </div>
                     <div>
-                      <span className="font-bold text-slate-800 block text-sm">{product.name}</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-slate-800 block text-sm">{product.name}</span>
+                        {product.synced === 0 && (
+                          <span className="px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-100 flex items-center space-x-1 shrink-0">
+                             <CloudOff size={8} />
+                             <span className="text-[7px] font-black uppercase">Chưa đồng bộ</span>
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-slate-400 font-mono">ID: {product.id}</span>
                     </div>
                   </div>
@@ -477,7 +486,10 @@ const ProductManager = () => {
                 {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <Package size={24} className="text-slate-300" />}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{product.code}</p>
+                <div className="flex items-start justify-between mb-1">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{product.code}</p>
+                  {product.synced === 0 && <CloudOff size={10} className="text-amber-500" />}
+                </div>
                 <h3 className="text-sm font-bold text-slate-800 leading-tight truncate">{product.name}</h3>
                 <div className="flex items-center space-x-2 mt-2">
                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase">{product.unit}</span>

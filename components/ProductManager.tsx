@@ -118,8 +118,9 @@ const ProductManager = () => {
     setLocalError(null);
   }, [editingProduct, isModalOpen, productGroups]);
 
-  const formatCurrencyInput = (value: string) => {
-    const numericValue = value.replace(/\D/g, "");
+  const formatCurrencyInput = (value: string | number) => {
+    if (value === undefined || value === null) return "";
+    const numericValue = String(value).replace(/\D/g, "");
     return numericValue ? Number(numericValue).toLocaleString('vi-VN') : "";
   };
 
@@ -127,12 +128,13 @@ const ProductManager = () => {
     return Number(value.replace(/\D/g, ""));
   };
 
+  // FIX: Sử dụng functional update (prev => ...) để tránh mất dữ liệu form khi xử lý ảnh bất đồng bộ
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, image: reader.result as string });
+        setFormData(prev => ({ ...prev, image: reader.result as string }));
       };
       reader.readAsDataURL(file);
     }
@@ -261,7 +263,7 @@ const ProductManager = () => {
   const filteredProducts = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.barcode.includes(searchTerm)
+    (p.barcode && p.barcode.includes(searchTerm))
   );
 
   const validate = () => {
@@ -269,9 +271,6 @@ const ProductManager = () => {
     if (!formData.code.trim()) return "Vui lòng nhập mã sản phẩm.";
     if (!formData.unit.trim()) return "Vui lòng nhập đơn vị tính.";
     if (!formData.groupId) return "Vui lòng chọn nhóm sản phẩm.";
-    
-    const missingPrice = priceTypes.some(pt => prices[pt.id] === undefined || prices[pt.id] < 0);
-    if (missingPrice) return "Vui lòng nhập đầy đủ giá bán cho các loại giá.";
     
     return null;
   };
@@ -299,11 +298,18 @@ const ProductManager = () => {
       price: prices[pt.id] || 0
     }));
 
-    if (editingProduct) await updateProduct(productPayload, pricePayload);
-    else await addProduct(productPayload, pricePayload);
-    
-    setIsModalOpen(false);
-    setEditingProduct(null);
+    try {
+      if (editingProduct) await updateProduct(productPayload, pricePayload);
+      else await addProduct(productPayload, pricePayload);
+      
+      setSuccessMsg(editingProduct ? "Đã cập nhật sản phẩm thành công!" : "Đã thêm sản phẩm mới thành công!");
+      setTimeout(() => setSuccessMsg(null), 3000);
+      
+      setIsModalOpen(false);
+      setEditingProduct(null);
+    } catch (err) {
+      setLocalError("Có lỗi xảy ra khi lưu sản phẩm.");
+    }
   };
 
   const getGroupName = (id: string) => productGroups.find(g => g.id === id)?.name || '---';
@@ -586,12 +592,12 @@ const ProductManager = () => {
                     </div>
                     <div className="relative">
                       <input 
-                        type="number" 
+                        type="text" 
                         disabled={editingProduct && hasOrders}
                         className={`w-full px-5 py-4 border rounded-2xl outline-none font-black text-sm transition-all ${editingProduct && hasOrders ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-70' : 'bg-slate-50 border-slate-200 focus:ring-4 focus:ring-indigo-100 text-slate-800'}`} 
                         placeholder="0"
-                        value={formData.stock || ''} 
-                        onChange={e => setFormData({...formData, stock: e.target.value === '' ? 0 : Number(e.target.value)})} 
+                        value={formatCurrencyInput(formData.stock)} 
+                        onChange={e => setFormData({...formData, stock: parseCurrencyInput(e.target.value)})} 
                       />
                     </div>
                     {editingProduct && hasOrders && (
@@ -618,7 +624,7 @@ const ProductManager = () => {
                           type="text"
                           required
                           className="w-full pl-4 pr-12 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-800 text-sm shadow-sm"
-                          value={formatCurrencyInput(String(prices[pt.id] ?? ""))}
+                          value={formatCurrencyInput(prices[pt.id] ?? "")}
                           onChange={e => setPrices({...prices, [pt.id]: parseCurrencyInput(e.target.value)})}
                           placeholder="0"
                         />

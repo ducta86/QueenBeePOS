@@ -44,6 +44,9 @@ interface AppState {
   updateLoyaltyConfig: (config: LoyaltyConfig) => Promise<void>;
   updateStock: (productId: string, delta: number) => Promise<void>;
   addPurchase: (purchase: Purchase) => Promise<void>;
+  
+  deleteOrder: (id: string) => Promise<void>;
+  deletePurchase: (id: string) => Promise<void>;
 }
 
 const DEFAULT_STORE_CONFIG: StoreConfig = {
@@ -328,6 +331,47 @@ export const useStore = create<AppState>((set, get) => ({
         await db.products.update(p.id, { stock: p.stock + item.qty, updatedAt: Date.now(), synced: 0 });
       }
     }
+    const products = await db.products.where('deleted').equals(0).toArray();
+    set({ products });
+  },
+
+  deleteOrder: async (id) => {
+    const order = await db.orders.get(id);
+    if (!order) return;
+    
+    await (db as Dexie).transaction('rw', [db.orders, db.products], async () => {
+      // 1. Đánh dấu xóa mềm
+      await db.orders.update(id, { deleted: 1, synced: 0, updatedAt: Date.now() });
+      
+      // 2. Hoàn trả kho (cộng lại)
+      for (const item of order.items) {
+        const p = await db.products.get(item.productId);
+        if (p) {
+          await db.products.update(p.id, { stock: p.stock + item.qty, updatedAt: Date.now(), synced: 0 });
+        }
+      }
+    });
+    // Sau khi xóa cần lấy lại danh sách sản phẩm để cập nhật UI tồn kho
+    const products = await db.products.where('deleted').equals(0).toArray();
+    set({ products });
+  },
+
+  deletePurchase: async (id) => {
+    const purchase = await db.purchases.get(id);
+    if (!purchase) return;
+    
+    await (db as Dexie).transaction('rw', [db.purchases, db.products], async () => {
+      // 1. Đánh dấu xóa mềm
+      await db.purchases.update(id, { deleted: 1, synced: 0, updatedAt: Date.now() });
+      
+      // 2. Hoàn trả kho (trừ bớt vì phiếu nhập đã cộng vào trước đó)
+      for (const item of purchase.items) {
+        const p = await db.products.get(item.productId);
+        if (p) {
+          await db.products.update(p.id, { stock: Math.max(0, p.stock - item.qty), updatedAt: Date.now(), synced: 0 });
+        }
+      }
+    });
     const products = await db.products.where('deleted').equals(0).toArray();
     set({ products });
   }

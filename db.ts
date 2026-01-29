@@ -74,7 +74,7 @@ export const seedDatabase = async () => {
     const salt = generateSalt();
     const defaultPwHash = await hashPassword('user@123', salt);
     await db.users.put({
-      id: 'admin0000000001', // Đổi về 15 ký tự
+      id: 'admin0000000001',
       username: 'admin',
       passwordHash: defaultPwHash,
       passwordSalt: salt,
@@ -85,67 +85,13 @@ export const seedDatabase = async () => {
       deleted: 0
     });
   }
-
-  const count = await db.priceTypes.count();
-  if (count === 0) {
-    const p1 = 'retail000000001';
-    const p2 = 'wholesal0000001';
-    
-    await db.priceTypes.bulkPut([
-      { id: p1, name: 'Giá bán lẻ', synced: 1, updatedAt: Date.now(), deleted: 0 },
-      { id: p2, name: 'Giá bán sỉ', synced: 1, updatedAt: Date.now(), deleted: 0 }
-    ]);
-
-    await db.productGroups.bulkPut([
-      { id: 'group0000000001', name: 'Điện thoại', synced: 1, updatedAt: Date.now(), deleted: 0 },
-      { id: 'group0000000002', name: 'Laptop', synced: 1, updatedAt: Date.now(), deleted: 0 },
-      { id: 'group0000000003', name: 'Phụ kiện', synced: 1, updatedAt: Date.now(), deleted: 0 }
-    ]);
-
-    const ct1 = 'type00000000001';
-    const ct2 = 'type00000000002';
-
+  
+  // Xóa trắng các dữ liệu mẫu khác để người dùng tự thiết lập từ đầu
+  const ctCount = await db.customerTypes.count();
+  if (ctCount === 0) {
     await db.customerTypes.bulkPut([
-      { id: ct1, name: 'Khách lẻ', defaultPriceTypeId: p1 },
-      { id: ct2, name: 'Khách VIP', defaultPriceTypeId: p2 }
+      { id: 'type00000000001', name: 'Khách lẻ', defaultPriceTypeId: '' },
+      { id: 'type00000000002', name: 'Khách VIP', defaultPriceTypeId: '' }
     ]);
-
-    const sampleProdId = 'prod00000000001';
-    await db.products.put({
-      id: sampleProdId,
-      name: 'iPhone 15 Pro Max',
-      code: 'IP15PM',
-      barcode: '88888888',
-      image: 'https://images.unsplash.com/photo-1696446701796-da61225697cc?w=400',
-      groupId: 'group0000000001',
-      unit: 'Cái',
-      lineId: 'apple',
-      stock: 50,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      synced: 1,
-      deleted: 0
-    });
-
-    await db.productPrices.bulkPut([
-      { id: 'price0000000001', productId: sampleProdId, priceTypeId: p1, price: 34000000, synced: 1, updatedAt: Date.now(), deleted: 0 },
-      { id: 'price0000000002', productId: sampleProdId, priceTypeId: p2, price: 32000000, synced: 1, updatedAt: Date.now(), deleted: 0 }
-    ]);
-
-    await db.customers.put({
-      id: 'cust00000000001',
-      name: 'Nguyễn Văn A',
-      phone: '0901234567',
-      birthday: '',
-      address: '',
-      facebook: '',
-      typeId: ct1,
-      isLoyal: false,
-      totalSpent: 0,
-      orderCount: 0,
-      updatedAt: Date.now(),
-      synced: 1,
-      deleted: 0
-    });
   }
 };

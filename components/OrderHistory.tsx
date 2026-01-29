@@ -30,17 +30,20 @@ const OrderHistory = () => {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   
-  const { customers, products } = useStore();
+  const { customers, products, deleteOrder, deletePurchase } = useStore();
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const ordersData = await db.orders.orderBy('updatedAt').reverse().toArray();
-    const purchasesData = await db.purchases.orderBy('createdAt').reverse().toArray();
-    setOrders(ordersData);
-    setPurchases(purchasesData);
+    // Chỉ lấy các bản ghi chưa bị đánh dấu xóa (deleted === 0)
+    const ordersData = await db.orders.where('deleted').equals(0).toArray();
+    const purchasesData = await db.purchases.where('deleted').equals(0).toArray();
+    
+    // Sắp xếp thủ công theo thời gian mới nhất
+    setOrders(ordersData.sort((a, b) => b.updatedAt - a.updatedAt));
+    setPurchases(purchasesData.sort((a, b) => b.updatedAt - a.updatedAt));
   };
 
   const getCustomerName = (id: string) => {
@@ -56,8 +59,11 @@ const OrderHistory = () => {
 
   const handleDelete = async () => {
     if (deleteId) {
-      if (activeTab === 'sales') await db.orders.delete(deleteId);
-      else await db.purchases.delete(deleteId);
+      if (activeTab === 'sales') {
+        await deleteOrder(deleteId);
+      } else {
+        await deletePurchase(deleteId);
+      }
       await loadData();
       setDeleteId(null);
     }

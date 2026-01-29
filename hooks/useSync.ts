@@ -4,7 +4,10 @@ import { db } from '../db';
 import { useStore } from '../store';
 
 export const useSync = () => {
-  const { storeConfig, fetchInitialData } = useStore();
+  // Chỉ lấy backendUrl để tránh re-render useSync khi store khác thay đổi
+  const backendUrl = useStore(state => state.storeConfig.backendUrl?.replace(/\/$/, ''));
+  const fetchInitialData = useStore(state => state.fetchInitialData);
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [isServerOnline, setIsServerOnline] = useState(false);
   const [lastSync, setLastSync] = useState<number | null>(
@@ -12,18 +15,12 @@ export const useSync = () => {
   );
   
   const [unsyncedCount, setUnsyncedCount] = useState({
-    products: 0, 
-    orders: 0, 
-    customers: 0, 
-    users: 0, 
-    purchases: 0,
-    priceTypes: 0, 
-    productGroups: 0, 
-    productPrices: 0
+    products: 0, orders: 0, customers: 0, users: 0, purchases: 0,
+    priceTypes: 0, productGroups: 0, productPrices: 0
   });
 
   const syncTimerRef = useRef<any>(null);
-  const backendUrl = storeConfig.backendUrl?.replace(/\/$/, '');
+  const prevTotalRef = useRef<number>(-1);
 
   const checkServerHealth = useCallback(async () => {
     if (!backendUrl) return false;
@@ -44,72 +41,61 @@ export const useSync = () => {
   }, [backendUrl]);
 
   const checkUnsynced = useCallback(async () => {
-    const pCount = await db.products.where('synced').equals(0).count();
-    const oCount = await db.orders.where('synced').equals(0).count();
-    const cCount = await db.customers.where('synced').equals(0).count();
-    const uCount = await db.users.where('synced').equals(0).count();
-    const puCount = await db.purchases.where('synced').equals(0).count();
-    const ptCount = await db.priceTypes.where('synced').equals(0).count();
-    const pgCount = await db.productGroups.where('synced').equals(0).count();
-    const ppCount = await db.productPrices.where('synced').equals(0).count();
-    
-    const counts = { 
-      products: pCount, 
-      orders: oCount, 
-      customers: cCount, 
-      users: uCount,
-      purchases: puCount,
-      priceTypes: ptCount,
-      productGroups: pgCount, 
-      productPrices: ppCount  
-    };
-    
-    setUnsyncedCount(counts);
-    return (Object.values(counts) as number[]).reduce((a: number, b: number) => a + b, 0);
+    try {
+      const [pCount, oCount, cCount, uCount, puCount, ptCount, pgCount, ppCount] = await Promise.all([
+        db.products.where('synced').equals(0).count(),
+        db.orders.where('synced').equals(0).count(),
+        db.customers.where('synced').equals(0).count(),
+        db.users.where('synced').equals(0).count(),
+        db.purchases.where('synced').equals(0).count(),
+        db.priceTypes.where('synced').equals(0).count(),
+        db.productGroups.where('synced').equals(0).count(),
+        db.productPrices.where('synced').equals(0).count()
+      ]);
+      
+      const counts = { 
+        products: pCount, orders: oCount, customers: cCount, users: uCount,
+        purchases: puCount, priceTypes: ptCount, productGroups: pgCount, productPrices: ppCount  
+      };
+      
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      
+      // CHỈ cập nhật state nếu số lượng thay đổi để tránh gây lag UI
+      if (total !== prevTotalRef.current) {
+        setUnsyncedCount(counts);
+        prevTotalRef.current = total;
+      }
+      return total;
+    } catch (err) {
+      return 0;
+    }
   }, []);
 
   const syncCollection = async (tableName: string, collectionName: string) => {
     if (!backendUrl) return;
     const table = (db as any)[tableName];
-    
     const allLocalUnsynced = await table.where('synced').equals(0).toArray();
     
     for (const item of allLocalUnsynced) {
       try {
         const { synced, deleted, id: localId, ...payload } = item;
-        
         if (deleted === 1) {
-          const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, {
-            method: 'DELETE'
-          });
-          if (deleteResp.ok || deleteResp.status === 404) {
-            await table.delete(localId);
-          }
+          const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, { method: 'DELETE' });
+          if (deleteResp.ok || deleteResp.status === 404) await table.delete(localId);
           continue;
         }
-
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
-
-        const url = exists 
-          ? `${backendUrl}/api/collections/${collectionName}/records/${localId}` 
-          : `${backendUrl}/api/collections/${collectionName}/records`;
-
+        const url = exists ? `${backendUrl}/api/collections/${collectionName}/records/${localId}` : `${backendUrl}/api/collections/${collectionName}/records`;
         const method = exists ? 'PATCH' : 'POST';
         const body = method === 'POST' ? { id: localId, ...payload } : payload;
-
         const response = await fetch(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-
-        if (response.ok) {
-          await table.update(localId, { synced: 1 });
-        }
-      } catch (err) {
-        console.warn(`[Sync Item Error] ${collectionName}:`, err);
-      }
+        if (response.ok) await table.update(localId, { synced: 1 });
+      } catch (err) {}
     }
 
     try {
@@ -126,9 +112,7 @@ export const useSync = () => {
           }
         }
       }
-    } catch (err) {
-      console.error(`[Pull Error] ${collectionName}:`, err);
-    }
+    } catch (err) {}
   };
 
   const syncData = async () => {
@@ -138,14 +122,16 @@ export const useSync = () => {
 
     setIsSyncing(true);
     try {
-      await syncCollection('priceTypes', 'price_types');
-      await syncCollection('productGroups', 'product_groups');
-      await syncCollection('products', 'products');
-      await syncCollection('productPrices', 'product_prices');
-      await syncCollection('customers', 'customers');
-      await syncCollection('users', 'profiles');
-      await syncCollection('orders', 'orders');
-      await syncCollection('purchases', 'purchases');
+      await Promise.all([
+        syncCollection('priceTypes', 'price_types'),
+        syncCollection('productGroups', 'product_groups'),
+        syncCollection('products', 'products'),
+        syncCollection('productPrices', 'product_prices'),
+        syncCollection('customers', 'customers'),
+        syncCollection('users', 'profiles'),
+        syncCollection('orders', 'orders'),
+        syncCollection('purchases', 'purchases')
+      ]);
 
       const now = Date.now();
       setLastSync(now);
@@ -162,26 +148,18 @@ export const useSync = () => {
   useEffect(() => {
     checkUnsynced();
     checkServerHealth();
-
     syncTimerRef.current = setInterval(async () => {
       const online = await checkServerHealth();
       if (online) {
         const count = await checkUnsynced();
-        if ((count as number) > 0) await syncData();
+        if (count > 0) await syncData();
       }
-    }, 15000); 
-
-    return () => {
-      if (syncTimerRef.current) clearInterval(syncTimerRef.current);
-    };
-  }, [checkServerHealth, syncData, checkUnsynced]);
+    }, 45000); // Tăng thời gian giãn cách để CPU nghỉ
+    return () => clearInterval(syncTimerRef.current);
+  }, [checkServerHealth, checkUnsynced, backendUrl]);
 
   return { 
-    syncData, 
-    isSyncing, 
-    isServerOnline, 
-    lastSync, 
-    unsyncedCount,
-    totalUnsynced: (Object.values(unsyncedCount) as number[]).reduce((a: number, b: number) => a + b, 0)
+    syncData, isSyncing, isServerOnline, lastSync, unsyncedCount, checkUnsynced,
+    totalUnsynced: (Object.values(unsyncedCount) as number[]).reduce((a, b) => a + b, 0)
   };
 };

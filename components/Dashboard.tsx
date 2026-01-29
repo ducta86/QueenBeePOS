@@ -1,29 +1,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { 
-  TrendingUp, 
-  Users, 
-  ShoppingBag, 
-  DollarSign, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Package,
-  Loader2,
-  Box,
-  Target,
-  ArrowRight,
-  Truck,
-  Layers,
-  Activity
+  TrendingUp, Users, ShoppingBag, DollarSign, ArrowUpRight, ArrowDownRight,
+  Package, Loader2, Box, Target, ArrowRight, Truck, Layers, Activity
 } from 'lucide-react';
 import { 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area 
 } from 'recharts';
 import { db } from '../db';
 import { useStore } from '../store';
@@ -31,23 +13,23 @@ import { useStore } from '../store';
 type TimeFilter = 'day' | 'week' | 'month' | 'year';
 
 const KPICard = ({ title, value, icon: Icon, trend, color, description, subValue }: any) => (
-  <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 transition-all group overflow-hidden relative">
+  <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 transition-all group overflow-hidden relative">
     <div className="flex items-start justify-between relative z-10">
-      <div className={`p-3 rounded-2xl bg-${color}-50 text-${color}-600 shadow-sm`}>
+      <div className={`p-3 rounded-xl bg-${color}-50 text-${color}-600 shadow-sm`}>
         <Icon size={20} />
       </div>
       {trend !== undefined && (
-        <div className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase ${trend >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-          {trend >= 0 ? <ArrowUpRight size={12} strokeWidth={3} /> : <ArrowDownRight size={12} strokeWidth={3} />}
+        <div className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${trend >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+          {trend >= 0 ? <ArrowUpRight size={12} strokeWidth={2} /> : <ArrowDownRight size={12} strokeWidth={2} />}
           <span>{Math.abs(trend).toFixed(1)}%</span>
         </div>
       )}
     </div>
     <div className="mt-4 relative z-10">
-      <h3 className="text-slate-400 text-[9px] font-black uppercase tracking-[0.2em]">{title}</h3>
-      <p className="text-xl font-black text-slate-800 mt-1 tracking-tighter leading-none">{value}</p>
-      {subValue && <p className="text-[10px] text-indigo-500 font-black mt-1 uppercase tracking-tight">{subValue}</p>}
-      {description && <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase italic leading-tight">{description}</p>}
+      <h3 className="text-slate-500 text-[10px] font-semibold uppercase tracking-wider">{title}</h3>
+      <p className="text-2xl font-bold text-slate-800 mt-1 tracking-tight leading-none">{value}</p>
+      {subValue && <p className="text-xs text-indigo-600 font-semibold mt-1.5">{subValue}</p>}
+      {description && <p className="text-[10px] text-slate-400 font-medium mt-2 italic leading-tight">{description}</p>}
     </div>
   </div>
 );
@@ -101,7 +83,6 @@ const Dashboard = () => {
           prevEnd = currentStart;
         }
 
-        // 1. Fetch data with indexed fields
         const allOrders = await db.orders.where('deleted').equals(0).toArray();
         const allPurchases = await db.purchases.where('deleted').equals(0).toArray();
         const allCustomers = await db.customers.where('deleted').equals(0).toArray();
@@ -109,7 +90,6 @@ const Dashboard = () => {
         const costPrices = await db.productPrices.where('priceTypeId').equals(storeConfig.costPriceTypeId).toArray();
         const costMap = new Map<string, number>(costPrices.map(cp => [cp.productId, cp.price]));
 
-        // 2. Revenue & Orders
         const ordersInPeriod = allOrders.filter(o => o.updatedAt >= currentStart);
         const ordersInPrevPeriod = allOrders.filter(o => o.updatedAt >= prevStart && o.updatedAt < prevEnd);
         
@@ -118,7 +98,6 @@ const Dashboard = () => {
         const revGrowth = calculateGrowth(revCurrent, revPrev);
         const ordersGrowth = calculateGrowth(ordersInPeriod.length, ordersInPrevPeriod.length);
 
-        // 3. Profit (Revenue - COGS)
         const getCOGS = (orders: any[]) => orders.reduce((sum, order) => {
           return sum + order.items.reduce((iSum: number, item: any) => iSum + ((costMap.get(item.productId) || 0) * item.qty), 0);
         }, 0);
@@ -129,27 +108,21 @@ const Dashboard = () => {
         const profitPrev = revPrev - prevCOGS;
         const profitGrowth = calculateGrowth(profitCurrent, profitPrev);
 
-        // 4. Purchases (Nhập hàng trong kỳ)
         const purCurrent = allPurchases.filter(p => p.createdAt >= currentStart).reduce((s, p) => s + p.total, 0);
         const purPrev = allPurchases.filter(p => p.createdAt >= prevStart && p.createdAt < prevEnd).reduce((s, p) => s + p.total, 0);
         const purGrowth = calculateGrowth(purCurrent, purPrev);
 
-        // 5. Inventory (Tồn kho: Hiện tại vs Đầu kỳ)
-        // Giá trị kho hiện tại = Tổng (Số lượng * Giá nhập)
         const currentStockQty = allProducts.reduce((sum, p) => sum + p.stock, 0);
         const currentStockValue = allProducts.reduce((sum, p) => sum + (p.stock * (costMap.get(p.id) || 0)), 0);
         
-        // Ước tính giá trị đầu kỳ = Giá trị hiện tại - Nhập hàng + Xuất hàng (COGS)
         const startStockValue = currentStockValue - purCurrent + currentCOGS;
         const invGrowth = calculateGrowth(currentStockValue, startStockValue);
 
-        // 6. Customers (Tỷ lệ khách hàng mới)
         const totalCustomers = allCustomers.length;
         const newCustCurrent = allCustomers.filter(c => c.updatedAt >= currentStart).length;
         const newCustPrev = allCustomers.filter(c => c.updatedAt >= prevStart && c.updatedAt < prevEnd).length;
         const custGrowth = calculateGrowth(newCustCurrent, newCustPrev);
 
-        // 7. Chart & Top Products
         const chartMap = new Map<string, number>();
         const productSales = new Map<string, { name: string, sales: number }>();
         
@@ -189,7 +162,7 @@ const Dashboard = () => {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center py-40">
         <Loader2 className="animate-spin text-indigo-600 mb-4" size={48} />
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tính toán hiệu suất kinh doanh...</p>
+        <p className="text-sm font-semibold text-slate-400">Chuẩn bị báo cáo...</p>
       </div>
     );
   }
@@ -199,18 +172,18 @@ const Dashboard = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <div className="flex items-center space-x-3 mb-1">
-             <div className="w-1.5 h-7 bg-indigo-600 rounded-full"></div>
-             <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter leading-none">Tổng quan kinh doanh</h1>
+             <div className="w-1.25 h-6 bg-indigo-600 rounded-full"></div>
+             <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Tổng quan kinh doanh</h1>
           </div>
-          <p className="text-slate-400 text-xs font-medium ml-4">Phân tích dữ liệu thực tế dựa trên kỳ báo cáo.</p>
+          <p className="text-slate-500 text-sm font-medium ml-4">Phân tích dữ liệu thực tế dựa trên kỳ báo cáo.</p>
         </div>
 
-        <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shadow-sm no-print">
+        <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
           {(['day', 'week', 'month', 'year'] as TimeFilter[]).map(f => (
             <button 
               key={f}
               onClick={() => setTimeFilter(f)}
-              className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeFilter === f ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+              className={`px-5 py-2 rounded-lg text-xs font-semibold transition-all ${timeFilter === f ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
             >
               {f === 'day' ? 'Hôm nay' : f === 'week' ? 'Tuần' : f === 'month' ? 'Tháng' : 'Năm'}
             </button>
@@ -219,27 +192,25 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard title="Doanh thu" value={`${stats.revenue.current.toLocaleString()}đ`} trend={stats.revenue.growth} icon={DollarSign} color="indigo" description="Tổng tiền bán lẻ" />
-        <KPICard title="Đơn hàng" value={stats.orders.current} trend={stats.orders.growth} icon={ShoppingBag} color="emerald" description="Số đơn hoàn tất" />
-        <KPICard title="Lợi nhuận" value={`${stats.profit.current.toLocaleString()}đ`} trend={stats.profit.growth} icon={TrendingUp} color="amber" description="Doanh thu - Giá vốn" />
-        <KPICard title="Doanh số nhập" value={`${stats.purchases.current.toLocaleString()}đ`} trend={stats.purchases.growth} icon={Truck} color="purple" description="Tổng tiền nhập kho" />
-        <KPICard title="Tồn kho" value={`${stats.inventory.value.toLocaleString()}đ`} subValue={`${stats.inventory.qty.toLocaleString()} SP`} trend={stats.inventory.growth} icon={Box} color="blue" description="Tổng tiền nhập hàng tồn" />
-        <KPICard title="Khách hàng" value={stats.customers.current} trend={stats.customers.growth} icon={Users} color="rose" description="Tổng tệp khách" />
+        <KPICard title="Doanh thu" value={`${stats.revenue.current.toLocaleString()}đ`} trend={stats.revenue.growth} icon={DollarSign} color="indigo" />
+        <KPICard title="Đơn hàng" value={stats.orders.current} trend={stats.orders.growth} icon={ShoppingBag} color="emerald" />
+        <KPICard title="Lợi nhuận" value={`${stats.profit.current.toLocaleString()}đ`} trend={stats.profit.growth} icon={TrendingUp} color="amber" />
+        <KPICard title="Nhập hàng" value={`${stats.purchases.current.toLocaleString()}đ`} trend={stats.purchases.growth} icon={Truck} color="purple" />
+        <KPICard title="Tồn kho" value={`${stats.inventory.value.toLocaleString()}đ`} trend={stats.inventory.growth} icon={Box} color="blue" />
+        <KPICard title="Khách hàng" value={stats.customers.current} trend={stats.customers.growth} icon={Users} color="rose" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm">
-           <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center space-x-3">
-                 <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Target size={20} /></div>
-                 <div>
-                    <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em]">Biểu đồ doanh thu</h3>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-widest">Hiệu suất bán lẻ</p>
-                 </div>
+        <div className="lg:col-span-2 bg-white p-6 md:p-8 rounded-[32px] border border-slate-100 shadow-sm">
+           <div className="flex items-center space-x-3 mb-8">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm"><Target size={20} /></div>
+              <div>
+                 <h3 className="font-bold text-slate-800 text-base">Biểu đồ doanh thu</h3>
+                 <p className="text-xs text-slate-400 font-medium">Hiệu suất bán lẻ theo thời gian</p>
               </div>
            </div>
            
-           <div className="h-[350px]">
+           <div className="h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats.chartData.length > 0 ? stats.chartData : [{label: '-', revenue: 0}]}>
                   <defs>
@@ -249,55 +220,42 @@ const Dashboard = () => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 'bold'}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 'bold'}} tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v.toLocaleString()} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 500}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 500}} tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v.toLocaleString()} />
                   <Tooltip 
                     formatter={(v: any) => [`${v.toLocaleString()}đ`, 'Doanh thu']}
-                    contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '16px', fontWeight: 'bold'}}
+                    contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px', fontWeight: 600}}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
+                  <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
                 </AreaChart>
               </ResponsiveContainer>
            </div>
         </div>
 
-        <div className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col">
+        <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col">
            <div className="flex items-center space-x-3 mb-8">
-              <div className="p-3 bg-slate-50 text-slate-400 rounded-2xl shadow-sm"><Layers size={20} /></div>
+              <div className="p-3 bg-slate-50 text-slate-400 rounded-xl shadow-sm"><Layers size={20} /></div>
               <div>
-                 <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-[0.2em]">Sản phẩm bán chạy</h3>
-                 <p className="text-slate-400 text-[9px] font-bold uppercase mt-1 tracking-widest">Tiêu thụ nhiều nhất</p>
+                 <h3 className="font-bold text-slate-800 text-base">Sản phẩm tiêu biểu</h3>
+                 <p className="text-slate-400 text-xs font-medium">Bán chạy nhất trong kỳ</p>
               </div>
            </div>
 
            <div className="flex-1 space-y-3">
               {stats.topProducts.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl hover:bg-indigo-50/50 transition-all group border border-transparent hover:border-indigo-100">
+                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-xl hover:bg-indigo-50/50 transition-all group border border-transparent hover:border-indigo-100">
                   <div className="flex items-center space-x-3">
-                    <div className="w-9 h-9 bg-white border border-slate-100 text-indigo-600 rounded-xl flex items-center justify-center font-black text-[10px] shadow-sm">
+                    <div className="w-8 h-8 bg-white border border-slate-100 text-indigo-600 rounded-lg flex items-center justify-center font-bold text-xs shadow-sm">
                        {idx + 1}
                     </div>
                     <div className="min-w-0">
-                       <p className="font-bold text-slate-700 text-xs truncate leading-tight uppercase tracking-tight">{item.name}</p>
-                       <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1">Đã bán {item.sales} đơn vị</p>
+                       <p className="font-semibold text-slate-700 text-sm truncate leading-tight">{item.name}</p>
+                       <p className="text-[10px] text-slate-400 font-medium mt-1">Đã bán {item.sales} sản phẩm</p>
                     </div>
                   </div>
                   <ArrowRight size={14} className="text-slate-300 group-hover:text-indigo-400 transition-colors" />
                 </div>
               ))}
-              {stats.topProducts.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center py-20 opacity-20 italic">
-                   <Package size={50} strokeWidth={1} className="text-slate-400 mb-4" />
-                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Chưa có giao dịch</p>
-                </div>
-              )}
-           </div>
-
-           <div className="mt-8 pt-6 border-t border-slate-50">
-              <div className="bg-indigo-50/30 p-4 rounded-2xl border border-indigo-50 flex items-center justify-center space-x-2">
-                 <Activity size={12} className="text-indigo-500" />
-                 <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest text-center">Tự động cập nhật dữ liệu</p>
-              </div>
            </div>
         </div>
       </div>

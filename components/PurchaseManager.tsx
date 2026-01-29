@@ -11,7 +11,7 @@ import { Product, PurchaseItem, Purchase } from '../types';
 
 const PurchaseManager = () => {
   const navigate = useNavigate();
-  const { products, addPurchase, storeConfig, priceTypes, setError } = useStore();
+  const { products, addPurchase, storeConfig, priceTypes } = useStore();
   const [cart, setCart] = useState<PurchaseItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [isProductFocused, setIsProductFocused] = useState(false);
@@ -22,9 +22,8 @@ const PurchaseManager = () => {
   const productRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Kiểm tra cấu hình giá vốn
+    // Nếu chưa chọn loại giá vốn, tự động chuyển về trang cài đặt loại giá
     if (!storeConfig.costPriceTypeId) {
-      setError("BẮT BUỘC: Bạn phải cấu hình Loại giá dùng làm GIÁ VỐN trước khi nhập hàng.");
       navigate('/settings');
       return;
     }
@@ -32,11 +31,13 @@ const PurchaseManager = () => {
     const fetchCostPrices = async () => {
       const prices = await db.productPrices.where('priceTypeId').equals(storeConfig.costPriceTypeId).toArray();
       const map: Record<string, number> = {};
-      prices.forEach(p => map[p.productId] = p.price);
+      prices.forEach(p => {
+        if (p.deleted === 0) map[p.productId] = p.price;
+      });
       setCostPrices(map);
     };
     fetchCostPrices();
-  }, [storeConfig.costPriceTypeId, navigate, setError]);
+  }, [storeConfig.costPriceTypeId, navigate]);
 
   const addToCart = (product: Product) => {
     const existing = cart.find(item => item.productId === product.id);

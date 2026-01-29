@@ -50,7 +50,7 @@ const DEFAULT_STORE_CONFIG: StoreConfig = {
   name: 'QueenBee POS',
   address: '123 Đường Công Nghệ, TP. HCM',
   phone: '0900.000.000',
-  costPriceTypeId: '', // Mặc định để trống để nhắc người dùng chọn
+  costPriceTypeId: '', // Mặc định rỗng
   lowStockThreshold: 10,
   bankId: 'MB',
   bankAccount: '123456789',
@@ -92,10 +92,6 @@ export const useStore = create<AppState>((set, get) => ({
     const storeRaw = localStorage.getItem('store_config');
     const store = storeRaw ? JSON.parse(storeRaw) : DEFAULT_STORE_CONFIG;
     
-    if (store && store.lowStockThreshold === undefined) {
-      store.lowStockThreshold = 10;
-    }
-
     set({ users, products, customers, priceTypes, customerTypes, productGroups, loyaltyConfig: loyalty, storeConfig: store, isLoading: false });
   },
 
@@ -123,7 +119,6 @@ export const useStore = create<AppState>((set, get) => ({
     const id = generateId();
     const salt = generateSalt();
     const passwordHash = await hashPassword(passwordPlain, salt);
-    
     const newUser: User = {
       id, username: username.toLowerCase(), fullName, role, passwordHash, passwordSalt: salt,
       updatedAt: Date.now(), synced: 0, deleted: 0
@@ -195,13 +190,15 @@ export const useStore = create<AppState>((set, get) => ({
       }));
       await db.productPrices.bulkAdd(priceRecords);
     });
-    set((state) => ({
-      products: state.products.map(p => p.id === product.id ? product : p)
-    }));
+    const products = await db.products.where('deleted').equals(0).toArray();
+    set({ products });
   },
 
   deleteProduct: async (id) => {
-    await db.products.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
+    await (db as Dexie).transaction('rw', [db.products, db.productPrices], async () => {
+      await db.products.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
+      await db.productPrices.where('productId').equals(id).modify({ deleted: 1, updatedAt: Date.now(), synced: 0 });
+    });
     set((state) => ({
       products: state.products.filter(p => p.id !== id)
     }));
@@ -234,12 +231,21 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   deletePriceType: async (id) => {
-    const inUseProduct = await db.productPrices.where('priceTypeId').equals(id).filter(p => p.price > 0).count();
-    const inUseCustomer = await db.customers.where('typeId').equals(id).count();
-    
-    if (inUseProduct > 0 || inUseCustomer > 0) {
-      set({ error: "Không thể xóa loại giá này vì đang được áp dụng cho sản phẩm hoặc khách hàng." });
-      setTimeout(() => set({ error: null }), 4000);
+    const config = get().storeConfig;
+    if (config.costPriceTypeId === id) {
+      set({ error: "Không thể xóa: Loại giá này đang được gán làm GIÁ VỐN hệ thống." });
+      setTimeout(() => set({ error: null }), 3000);
+      throw new Error("Deletion blocked");
+    }
+
+    // Kiểm tra sản phẩm có gán giá > 0
+    const countProduct = await db.productPrices.where('priceTypeId').equals(id).filter(p => p.price > 0 && p.deleted === 0).count();
+    // Kiểm tra khách hàng sử dụng loại giá này
+    const countCustomer = await db.customers.where('typeId').equals(id).filter(c => c.deleted === 0).count();
+
+    if (countProduct > 0 || countCustomer > 0) {
+      set({ error: "Không thể xóa: Loại giá này đang có Sản phẩm hoặc Khách hàng đang sử dụng." });
+      setTimeout(() => set({ error: null }), 3000);
       throw new Error("Deletion blocked");
     }
 
@@ -262,11 +268,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   deleteProductGroup: async (id) => {
-    const count = await db.products.where('groupId').equals(id).count();
+    const count = await db.products.where('groupId').equals(id).filter(p => p.deleted === 0).count();
     if (count > 0) {
-      set({ error: "Nhóm sản phẩm này đang chứa sản phẩm, không thể xóa." });
-      setTimeout(() => set({ error: null }), 4000);
-      return;
+      set({ error: "Không thể xóa: Nhóm hàng này vẫn còn sản phẩm đang hoạt động." });
+      setTimeout(() => set({ error: null }), 3000);
+      throw new Error("Deletion blocked");
     }
     await db.productGroups.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
     const productGroups = await db.productGroups.where('deleted').equals(0).toArray();
@@ -286,6 +292,12 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   deleteCustomer: async (id) => {
+    const orderCount = await db.orders.where('customerId').equals(id).filter(o => o.deleted === 0).count();
+    if (orderCount > 0) {
+       set({ error: "Không thể xóa: Khách hàng này đã có giao dịch trong lịch sử." });
+       setTimeout(() => set({ error: null }), 3000);
+       throw new Error("Deletion blocked");
+    }
     await db.customers.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
     set((state) => ({
       customers: state.customers.filter(c => c.id !== id)

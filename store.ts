@@ -50,7 +50,7 @@ const DEFAULT_STORE_CONFIG: StoreConfig = {
   name: 'QueenBee POS',
   address: '123 Đường Công Nghệ, TP. HCM',
   phone: '0900.000.000',
-  costPriceTypeId: 'pt-retail',
+  costPriceTypeId: '', // Mặc định để trống để nhắc người dùng chọn
   lowStockThreshold: 10,
   bankId: 'MB',
   bankAccount: '123456789',
@@ -165,7 +165,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   addProduct: async (product, prices) => {
     await (db as Dexie).transaction('rw', [db.products, db.productPrices], async () => {
-      await db.products.add(product);
+      await db.products.add({ ...product, synced: 0 });
       const priceRecords: ProductPrice[] = prices.map(p => ({
         id: generateId(),
         productId: product.id,
@@ -182,7 +182,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateProduct: async (product, prices) => {
     await (db as Dexie).transaction('rw', [db.products, db.productPrices], async () => {
-      await db.products.put({ ...product, synced: 0 });
+      await db.products.put({ ...product, synced: 0, updatedAt: Date.now() });
       await db.productPrices.where('productId').equals(product.id).delete();
       const priceRecords: ProductPrice[] = prices.map(p => ({
         id: generateId(),
@@ -274,12 +274,12 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addCustomer: async (customer) => {
-    await db.customers.add(customer);
+    await db.customers.add({ ...customer, synced: 0 });
     set((state) => ({ customers: [...state.customers, customer] }));
   },
 
   updateCustomer: async (customer) => {
-    await db.customers.put({ ...customer, synced: 0 });
+    await db.customers.put({ ...customer, synced: 0, updatedAt: Date.now() });
     set((state) => ({
       customers: state.customers.map(c => c.id === customer.id ? customer : c)
     }));
@@ -309,7 +309,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   addPurchase: async (purchase) => {
-    await db.purchases.add(purchase);
+    await db.purchases.add({ ...purchase, synced: 0 });
     for (const item of purchase.items) {
       const p = await db.products.get(item.productId);
       if (p) {

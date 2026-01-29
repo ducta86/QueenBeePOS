@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
 import { db, generateId } from '../db';
 import { 
@@ -9,7 +10,8 @@ import {
 import { Product, PurchaseItem, Purchase } from '../types';
 
 const PurchaseManager = () => {
-  const { products, addPurchase, storeConfig, priceTypes } = useStore();
+  const navigate = useNavigate();
+  const { products, addPurchase, storeConfig, priceTypes, setError } = useStore();
   const [cart, setCart] = useState<PurchaseItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [isProductFocused, setIsProductFocused] = useState(false);
@@ -20,6 +22,13 @@ const PurchaseManager = () => {
   const productRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Kiểm tra cấu hình giá vốn
+    if (!storeConfig.costPriceTypeId) {
+      setError("BẮT BUỘC: Bạn phải cấu hình Loại giá dùng làm GIÁ VỐN trước khi nhập hàng.");
+      navigate('/settings');
+      return;
+    }
+
     const fetchCostPrices = async () => {
       const prices = await db.productPrices.where('priceTypeId').equals(storeConfig.costPriceTypeId).toArray();
       const map: Record<string, number> = {};
@@ -27,7 +36,7 @@ const PurchaseManager = () => {
       setCostPrices(map);
     };
     fetchCostPrices();
-  }, [storeConfig.costPriceTypeId]);
+  }, [storeConfig.costPriceTypeId, navigate, setError]);
 
   const addToCart = (product: Product) => {
     const existing = cart.find(item => item.productId === product.id);
@@ -229,7 +238,7 @@ const PurchaseManager = () => {
                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nhà cung cấp</label>
                     <input 
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm"
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-50 font-bold text-sm"
                       placeholder="Tên NCC / Người giao hàng..."
                       value={supplierName}
                       onChange={(e) => setSupplierName(e.target.value)}

@@ -1,6 +1,6 @@
 
-import React, { useEffect, useState } from 'react';
-import { HashRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Package, 
@@ -14,17 +14,30 @@ import {
   CreditCard,
   FileText,
   PackagePlus,
-  BarChart3
+  BarChart3,
+  ChevronDown,
+  User as UserIcon,
+  Loader2,
+  CloudOff,
+  CloudDownload,
+  AlertCircle,
+  Users2,
+  Truck,
+  DollarSign,
+  Layers,
+  Tags
 } from 'lucide-react';
-import Dashboard from './Dashboard';
-import ProductManager from './ProductManager';
-import CustomerManager from './CustomerManager';
-import POS from './POS';
-import Settings from './Settings';
-import OrderHistory from './OrderHistory';
-import PurchaseManager from './PurchaseManager';
-import Reports from './Reports';
-import { useStore } from '../store';
+import Dashboard from './components/Dashboard';
+import ProductManager from './components/ProductManager';
+import CustomerManager from './components/CustomerManager';
+import POS from './components/POS';
+import Settings from './components/Settings';
+import OrderHistory from './components/OrderHistory';
+import PurchaseManager from './components/PurchaseManager';
+import Reports from './components/Reports';
+import Login from './components/Login';
+import { useStore } from './store';
+import { useSync } from './hooks/useSync';
 
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }: { icon: any, label: string, path: string, active: boolean, onClick: () => void }) => (
   <Link 
@@ -44,42 +57,53 @@ const SidebarItem = ({ icon: Icon, label, path, active, onClick }: { icon: any, 
 const AppContent = () => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { fetchInitialData, storeConfig } = useStore();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isSyncMenuOpen, setIsSyncMenuOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const syncMenuRef = useRef<HTMLDivElement>(null);
+  
+  const { fetchInitialData, storeConfig, currentUser, logout } = useStore();
+  const { syncData, isSyncing, lastSync, unsyncedCount, totalUnsynced, isServerOnline } = useSync();
 
   useEffect(() => {
-    fetchInitialData();
+    if (currentUser) {
+      fetchInitialData();
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    const handleStatusChange = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatusChange);
+    window.addEventListener('offline', handleStatusChange);
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+      if (syncMenuRef.current && !syncMenuRef.current.contains(event.target as Node)) {
+        setIsSyncMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('online', handleStatusChange);
+      window.removeEventListener('offline', handleStatusChange);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
+
+  if (!currentUser) {
+    return <Login />;
+  }
 
   const handleItemClick = () => {
     setIsSidebarOpen(false);
   };
 
-  // Logic hiển thị tên gian hàng động ở logo
-  const renderBrandName = () => {
-    const fullName = storeConfig?.name || 'QueenBee POS';
-    const words = fullName.trim().split(/\s+/);
-    
-    if (words.length <= 1) {
-      return (
-        <span className="text-xl font-bold tracking-tight text-slate-800 truncate block text-indigo-600">
-          {fullName}
-        </span>
-      );
-    }
-
-    const lastWord = words.pop();
-    const firstPart = words.join(' ');
-
-    return (
-      <span className="text-xl font-bold tracking-tight text-slate-800 truncate block">
-        {firstPart} <span className="text-indigo-600">{lastWord}</span>
-      </span>
-    );
-  };
-
-  // Lấy ký tự đại diện (Avatar) từ tên gian hàng
   const getInitials = () => {
-    const name = storeConfig?.name || 'QueenBee POS';
+    const name = currentUser?.fullName || 'User';
     const words = name.trim().split(/\s+/);
     if (words.length >= 2) {
       return (words[0][0] + words[words.length - 1][0]).toUpperCase();
@@ -87,13 +111,23 @@ const AppContent = () => {
     return name.substring(0, 2).toUpperCase();
   };
 
+  const renderBrandName = () => {
+    const fullName = storeConfig?.name || 'QueenBee POS';
+    const words = fullName.trim().split(/\s+/);
+    if (words.length <= 1) return <span className="text-xl font-bold tracking-tight text-slate-800 truncate block">{fullName}</span>;
+    const lastWord = words.pop();
+    const firstPart = words.join(' ');
+    return (
+      <span className="text-xl font-bold tracking-tight text-slate-800 truncate block">
+        {firstPart} <span className="text-indigo-600">{lastWord}</span>
+      </span>
+    );
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden animate-in fade-in" 
-          onClick={() => setIsSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />
       )}
 
       <aside className={`
@@ -101,16 +135,14 @@ const AppContent = () => {
         ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
       `}>
         <div className="h-full flex flex-col p-4">
-          <div className="flex items-center space-x-2 px-4 py-6 overflow-hidden">
+          <div className="flex items-center space-x-2 px-4 py-6 shrink-0">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-indigo-200 shadow-lg shrink-0">
               <CreditCard size={24} />
             </div>
-            <div className="flex-1 min-w-0">
-              {renderBrandName()}
-            </div>
+            <div className="flex-1 min-w-0">{renderBrandName()}</div>
           </div>
 
-          <nav className="flex-1 space-y-1 mt-4">
+          <nav className="flex-1 space-y-1 mt-4 overflow-y-auto scrollbar-hide">
             <SidebarItem icon={LayoutDashboard} label="Bảng điều khiển" path="/" active={location.pathname === '/'} onClick={handleItemClick} />
             <SidebarItem icon={ShoppingCart} label="Bán hàng (POS)" path="/pos" active={location.pathname === '/pos'} onClick={handleItemClick} />
             <SidebarItem icon={PackagePlus} label="Nhập hàng" path="/purchase" active={location.pathname === '/purchase'} onClick={handleItemClick} />
@@ -127,37 +159,135 @@ const AppContent = () => {
                 {getInitials()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-slate-900 truncate">
-                  {storeConfig?.name || 'QueenBee POS'}
-                </p>
-                <p className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-widest">Hệ thống QueenBee</p>
+                <p className="text-sm font-black text-slate-900 truncate">{currentUser?.fullName}</p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase">{currentUser?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</p>
               </div>
-              <LogOut size={18} className="text-slate-300 hover:text-red-500 cursor-pointer transition-colors" />
+              <LogOut size={18} className="text-slate-300 hover:text-red-500 cursor-pointer transition-colors" onClick={logout} />
             </div>
           </div>
         </div>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
-          <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
-            <Menu size={24} />
-          </button>
-          
-          <div className="hidden md:flex items-center bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
-            <span className="text-xs font-bold text-slate-600">QueenBee Cloud Ready</span>
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 shrink-0">
+          <div className="flex items-center space-x-3">
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+              <Menu size={24} />
+            </button>
+            
+            <div className={`flex items-center px-2 sm:px-3 py-1.5 rounded-full border transition-colors ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 sm:mr-2 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+              <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {isOnline && isServerOnline ? 'Cloud Active' : 'Offline Mode'}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-full relative">
-              <Bell size={20} />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+          <div className="flex items-center space-x-2 md:space-x-4">
+            <div className="relative" ref={syncMenuRef}>
+              <button 
+                onClick={() => setIsSyncMenuOpen(!isSyncMenuOpen)}
+                className={`p-2 rounded-full relative transition-all ${isSyncMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}
+              >
+                <Bell size={20} className={isSyncing ? 'animate-bounce text-indigo-600' : ''} />
+                {(totalUnsynced as number) > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white">
+                    {(totalUnsynced as number) > 9 ? '9+' : totalUnsynced}
+                  </span>
+                )}
+              </button>
+
+              {isSyncMenuOpen && (
+                <div className="absolute right-0 mt-3 w-80 bg-white rounded-[32px] shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
+                   <div className="px-5 py-4 border-b border-slate-50 bg-slate-50/50 -mx-2 -mt-2 mb-2">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">Trạng thái dữ liệu</h4>
+                      <p className="text-[11px] font-bold text-slate-700">
+                        {(totalUnsynced as number) === 0 ? 'Dữ liệu đã an toàn trên Cloud' : `Có ${totalUnsynced} thay đổi chưa lưu`}
+                      </p>
+                   </div>
+                   
+                   <div className="max-h-[calc(100vh-220px)] md:max-h-96 overflow-y-auto scrollbar-hide">
+                      <div className="grid grid-cols-2 gap-1 px-1">
+                        {[
+                          { label: 'Sản phẩm', count: unsyncedCount.products, icon: Package },
+                          { label: 'Bảng giá', count: unsyncedCount.productPrices, icon: DollarSign },
+                          { label: 'Nhóm hàng', count: unsyncedCount.productGroups, icon: Layers },
+                          { label: 'Loại giá', count: unsyncedCount.priceTypes, icon: Tags },
+                          { label: 'Đơn hàng', count: unsyncedCount.orders, icon: FileText },
+                          { label: 'Khách hàng', count: unsyncedCount.customers, icon: Users },
+                          { label: 'Phiếu nhập', count: unsyncedCount.purchases, icon: Truck },
+                          { label: 'Nhân viên', count: unsyncedCount.users, icon: Users2 }
+                        ].map((item, idx) => (
+                          <div key={idx} className="flex flex-col p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                             <div className="flex items-center justify-between mb-2">
+                                <div className={`p-1.5 rounded-lg ${item.count > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-300'}`}>
+                                   <item.icon size={14} />
+                                </div>
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-lg ${item.count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-500'}`}>
+                                   {item.count > 0 ? `+${item.count}` : 'Ok'}
+                                </span>
+                             </div>
+                             <span className="text-[10px] font-bold text-slate-600 truncate">{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                   </div>
+
+                   <div className="p-2 border-t border-slate-50 mt-2">
+                     <button 
+                       onClick={() => { syncData(); setIsSyncMenuOpen(false); }}
+                       disabled={!isOnline || isSyncing}
+                       className="w-full py-3.5 bg-indigo-600 text-white rounded-[20px] font-black text-[10px] uppercase tracking-widest flex items-center justify-center space-x-2 shadow-lg hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95"
+                     >
+                        {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <CloudDownload size={14} />}
+                        <span>{isSyncing ? 'Đang gửi...' : 'Đồng bộ ngay'}</span>
+                     </button>
+                   </div>
+                </div>
+              )}
+            </div>
+            
+            <button 
+              onClick={syncData}
+              disabled={isSyncing || !isOnline}
+              className={`flex items-center space-x-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border ${
+                (totalUnsynced as number) > 0 
+                  ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' 
+                  : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'
+              } disabled:opacity-50`}
+            >
+              <RefreshCw size={16} className={`${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden xs:inline">{isSyncing ? 'Đang lưu...' : 'Đồng bộ'}</span>
             </button>
-            <button className="flex items-center space-x-2 bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-colors">
-              <RefreshCw size={16} />
-              <span>Đồng bộ</span>
-            </button>
+
+            <div className="relative" ref={userMenuRef}>
+              <button 
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className={`flex items-center space-x-2 p-1 rounded-2xl transition-all border border-transparent ${isUserMenuOpen ? 'bg-white shadow-lg border-slate-100' : 'hover:bg-slate-50'}`}
+              >
+                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-[10px] shrink-0">
+                  {getInitials()}
+                </div>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-3 w-48 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right">
+                  <div className="px-4 py-3 border-b border-slate-50 mb-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cá nhân</p>
+                    <p className="text-xs font-bold text-slate-700 truncate">{currentUser?.fullName}</p>
+                  </div>
+                  <Link to="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center space-x-3 px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all group">
+                    <UserIcon size={16} className="text-slate-400 group-hover:text-indigo-600" />
+                    <span className="font-bold text-xs">Hồ sơ của tôi</span>
+                  </Link>
+                  <button onClick={logout} className="w-full flex items-center space-x-3 px-4 py-2.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-all group">
+                    <LogOut size={16} className="text-rose-400 group-hover:text-rose-600" />
+                    <span className="font-bold text-xs">Đăng xuất</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -171,6 +301,7 @@ const AppContent = () => {
             <Route path="/purchase" element={<PurchaseManager />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
       </main>

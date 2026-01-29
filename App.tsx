@@ -189,9 +189,10 @@ const AppContent = () => {
                 className={`p-2 rounded-full relative transition-all ${isSyncMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}
               >
                 <Bell size={20} />
-                {totalUnsynced > 0 && (
+                {/* Fix: Cast totalUnsynced to number to resolve operator application error */}
+                {(totalUnsynced as number) > 0 && (
                   <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">
-                    {totalUnsynced > 9 ? '9+' : totalUnsynced}
+                    {(totalUnsynced as number) > 9 ? '9+' : totalUnsynced}
                   </span>
                 )}
               </button>
@@ -201,7 +202,8 @@ const AppContent = () => {
                    <div className="px-4 py-3 border-b border-slate-50 bg-slate-50/50 -mx-2 -mt-2 mb-2">
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trạng thái dữ liệu</h4>
                       <p className="text-[11px] font-bold text-slate-700 mt-1">
-                        {totalUnsynced === 0 ? 'Dữ liệu đã được bảo vệ trên mây' : `Có ${totalUnsynced} thay đổi chưa lưu`}
+                        {/* Fix: Cast totalUnsynced to number to resolve operator application error */}
+                        {(totalUnsynced as number) === 0 ? 'Dữ liệu đã được bảo vệ trên mây' : `Có ${totalUnsynced} thay đổi chưa lưu`}
                       </p>
                    </div>
                    
@@ -227,7 +229,8 @@ const AppContent = () => {
                       ))}
                    </div>
 
-                   {totalUnsynced > 0 && (
+                   {/* Fix: Cast totalUnsynced to number to resolve operator application error */}
+                   {(totalUnsynced as number) > 0 && (
                       <div className="p-2 border-t border-slate-50 mt-2">
                         <button 
                           onClick={() => { syncData(); setIsSyncMenuOpen(false); }}
@@ -248,7 +251,8 @@ const AppContent = () => {
               onClick={syncData}
               disabled={isSyncing || !isOnline}
               className={`flex items-center space-x-2 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border ${
-                totalUnsynced > 0 
+                /* Fix: Cast totalUnsynced to number to resolve operator application error */
+                (totalUnsynced as number) > 0 
                   ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' 
                   : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'
               } disabled:opacity-50`}

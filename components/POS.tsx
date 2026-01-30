@@ -381,7 +381,9 @@ const POS = () => {
                           <div className="flex items-center bg-white rounded-lg border border-slate-100 p-0.5 shadow-sm w-fit mx-auto">
                              <button onClick={() => handleQtyChange(item.productId, item.qty - 1)} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"><Minus size={12} /></button>
                              <input 
-                              type="number" 
+                              type="text" 
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               className="w-6 md:w-10 text-center font-black text-xs md:text-sm border-none focus:ring-0 outline-none p-0 bg-transparent" 
                               value={item.qty || ''} 
                               onChange={(e) => handleQtyChange(item.productId, parseInt(e.target.value) || 0)}
@@ -432,6 +434,9 @@ const POS = () => {
                     </div>
                     <div className="relative">
                       <input 
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-right font-black text-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
                         value={discountValue === '0' ? '' : (discountType === 'amount' ? parseNumber(discountValue).toLocaleString() : discountValue)}
                         onChange={(e) => handleDiscountInput(e.target.value)}
@@ -504,6 +509,9 @@ const POS = () => {
                     <div className="bg-white p-3 rounded-[16px] border border-slate-100 focus-within:border-indigo-600 transition-all shadow-inner">
                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Tiền khách đưa</label>
                        <input 
+                         type="text" 
+                         inputMode="numeric"
+                         pattern="[0-9]*"
                          className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 outline-none placeholder:text-slate-200" 
                          autoFocus
                          placeholder="0"

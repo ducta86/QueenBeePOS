@@ -210,7 +210,9 @@ const PurchaseManager = () => {
                      <div className="flex items-center bg-white rounded-lg border border-slate-100 p-0.5 shadow-sm w-fit mx-auto scale-[0.85] md:scale-100 origin-center">
                         <button onClick={() => handleQtyChange(item.productId, item.qty - 1)} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"><Minus size={12} /></button>
                         <input 
-                           type="number"
+                           type="text"
+                           inputMode="numeric"
+                           pattern="[0-9]*"
                            className="w-5 md:w-12 text-center font-black text-[11px] md:text-sm border-none focus:ring-0 outline-none p-0 bg-transparent"
                            value={item.qty || ''}
                            onChange={(e) => handleQtyChange(item.productId, parseInt(e.target.value) || 0)}

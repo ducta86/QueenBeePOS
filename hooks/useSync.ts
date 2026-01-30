@@ -4,7 +4,6 @@ import { db } from '../db';
 import { useStore } from '../store';
 
 export const useSync = () => {
-  // Chỉ lấy backendUrl để tránh re-render useSync khi store khác thay đổi
   const backendUrl = useStore(state => state.storeConfig.backendUrl?.replace(/\/$/, ''));
   const fetchInitialData = useStore(state => state.fetchInitialData);
 
@@ -27,9 +26,7 @@ export const useSync = () => {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 2000);
-      const resp = await fetch(`${backendUrl}/api/collections/profiles/records?perPage=1`, { 
-        signal: controller.signal 
-      });
+      const resp = await fetch(`${backendUrl}/api/health`, { signal: controller.signal });
       clearTimeout(id);
       const online = resp.status < 500;
       setIsServerOnline(online);
@@ -59,8 +56,6 @@ export const useSync = () => {
       };
       
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
-      
-      // CHỈ cập nhật state nếu số lượng thay đổi để tránh gây lag UI
       if (total !== prevTotalRef.current) {
         setUnsyncedCount(counts);
         prevTotalRef.current = total;
@@ -74,45 +69,78 @@ export const useSync = () => {
   const syncCollection = async (tableName: string, collectionName: string) => {
     if (!backendUrl) return;
     const table = (db as any)[tableName];
-    const allLocalUnsynced = await table.where('synced').equals(0).toArray();
     
+    // 1. PUSH: Gửi dữ liệu từ Local lên Server
+    const allLocalUnsynced = await table.where('synced').equals(0).toArray();
     for (const item of allLocalUnsynced) {
       try {
         const { synced, deleted, id: localId, ...payload } = item;
+        
+        // Xử lý Xóa
         if (deleted === 1) {
           const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, { method: 'DELETE' });
-          if (deleteResp.ok || deleteResp.status === 404) await table.delete(localId);
+          if (deleteResp.ok || deleteResp.status === 404) {
+            // Nếu xóa mềm ở local và đã delete trên server (hoặc ko tồn tại trên server) thì xóa cứng ở local
+            await table.delete(localId);
+          }
           continue;
         }
+
+        // Kiểm tra tồn tại trên server
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
-        const url = exists ? `${backendUrl}/api/collections/${collectionName}/records/${localId}` : `${backendUrl}/api/collections/${collectionName}/records`;
+        
+        const url = exists 
+          ? `${backendUrl}/api/collections/${collectionName}/records/${localId}` 
+          : `${backendUrl}/api/collections/${collectionName}/records`;
+        
         const method = exists ? 'PATCH' : 'POST';
+        
+        // PocketBase yêu cầu ID trong body khi POST để giữ nguyên ID từ local
         const body = method === 'POST' ? { id: localId, ...payload } : payload;
+
         const response = await fetch(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-        if (response.ok) await table.update(localId, { synced: 1 });
-      } catch (err) {}
+
+        if (response.ok) {
+          await table.update(localId, { synced: 1 });
+        } else {
+          const errData = await response.json();
+          console.error(`Sync error for ${collectionName}:`, errData);
+        }
+      } catch (err) {
+        console.error(`Fetch failed for ${collectionName}:`, err);
+      }
     }
 
+    // 2. PULL: Kéo dữ liệu mới từ Server về Local
     try {
-      const lastSyncISO = lastSync ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] : '2000-01-01 00:00:00';
+      const lastSyncISO = lastSync 
+        ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] 
+        : '2000-01-01 00:00:00';
+      
       const pullUrl = `${backendUrl}/api/collections/${collectionName}/records?filter=(updated > "${lastSyncISO}")&perPage=500`;
       const resp = await fetch(pullUrl);
+      
       if (resp.ok) {
         const result = await resp.json();
         for (const record of result.items) {
           const local = await table.get(record.id);
           const remoteTs = new Date(record.updated).getTime();
+          
+          // Chỉ cập nhật nếu local chưa có hoặc dữ liệu server mới hơn
           if (!local || remoteTs > (local.updatedAt || 0)) {
-            await table.put({ ...record, synced: 1, deleted: 0 });
+            // Quan trọng: Dữ liệu pull về từ PB có thể thiếu trường 'deleted', ta mặc định là 0
+            await table.put({ ...record, synced: 1, deleted: 0, updatedAt: remoteTs });
           }
         }
       }
-    } catch (err) {}
+    } catch (err) {
+      console.error(`Pull failed for ${collectionName}:`, err);
+    }
   };
 
   const syncData = async () => {
@@ -122,16 +150,20 @@ export const useSync = () => {
 
     setIsSyncing(true);
     try {
-      await Promise.all([
-        syncCollection('priceTypes', 'price_types'),
-        syncCollection('productGroups', 'product_groups'),
-        syncCollection('products', 'products'),
-        syncCollection('productPrices', 'product_prices'),
-        syncCollection('customers', 'customers'),
-        syncCollection('users', 'profiles'),
-        syncCollection('orders', 'orders'),
-        syncCollection('purchases', 'purchases')
-      ]);
+      // ĐỒNG BỘ TUẦN TỰ THEO THỨ TỰ QUAN HỆ DỮ LIỆU
+      // Bước 1: Danh mục cha
+      await syncCollection('priceTypes', 'price_types');
+      await syncCollection('productGroups', 'product_groups');
+      await syncCollection('users', 'profiles');
+      
+      // Bước 2: Dữ liệu chính (phụ thuộc vào danh mục cha)
+      await syncCollection('products', 'products');
+      await syncCollection('customers', 'customers');
+      
+      // Bước 3: Dữ liệu chi tiết (phụ thuộc vào sản phẩm/khách hàng)
+      await syncCollection('productPrices', 'product_prices');
+      await syncCollection('orders', 'orders');
+      await syncCollection('purchases', 'purchases');
 
       const now = Date.now();
       setLastSync(now);
@@ -139,7 +171,7 @@ export const useSync = () => {
       await checkUnsynced();
       await fetchInitialData();
     } catch (error) {
-      console.error('Sync process failed:', error);
+      console.error('CRITICAL: Sync process failed:', error);
     } finally {
       setIsSyncing(false);
     }
@@ -154,7 +186,7 @@ export const useSync = () => {
         const count = await checkUnsynced();
         if (count > 0) await syncData();
       }
-    }, 45000); // Tăng thời gian giãn cách để CPU nghỉ
+    }, 30000); 
     return () => clearInterval(syncTimerRef.current);
   }, [checkServerHealth, checkUnsynced, backendUrl]);
 

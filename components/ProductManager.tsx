@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
 import { db, generateId } from '../db';
 import { 
@@ -25,7 +26,8 @@ import {
   Info,
   ChevronRight,
   Lock,
-  CloudOff
+  CloudOff,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { Product, ProductPrice } from '../types';
 import * as XLSX from 'xlsx';
@@ -53,6 +55,7 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', s
 );
 
 const ProductManager = () => {
+  const navigate = useNavigate();
   const { products, priceTypes, productGroups, addProduct, updateProduct, deleteProduct, error, setError, fetchInitialData, storeConfig } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -78,6 +81,8 @@ const ProductManager = () => {
     stock: 0
   });
   const [prices, setPrices] = useState<Record<string, number>>({});
+
+  const missingConfig = productGroups.length === 0 || priceTypes.length === 0;
 
   useEffect(() => {
     if (editingProduct) {
@@ -128,7 +133,6 @@ const ProductManager = () => {
     return Number(value.replace(/\D/g, ""));
   };
 
-  // FIX: Sử dụng functional update (prev => ...) để tránh mất dữ liệu form khi xử lý ảnh bất đồng bộ
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -401,6 +405,30 @@ const ProductManager = () => {
         </div>
       </div>
 
+      {missingConfig && (
+        <div className="p-6 rounded-[32px] border border-rose-400 bg-rose-50 flex flex-col md:flex-row items-center gap-6 animate-in slide-in-from-top-2 shadow-sm">
+           <div className="p-4 bg-rose-600 text-white rounded-2xl shadow-sm border border-rose-500 shrink-0">
+              <AlertCircle size={32} />
+           </div>
+           <div className="flex-1 text-center md:text-left">
+              <div className="flex items-center justify-center md:justify-start space-x-2 mb-1">
+                 <h4 className="font-black uppercase tracking-widest text-[10px] text-rose-700">Thiết lập danh mục cơ bản</h4>
+                 <span className="px-2 py-0.5 bg-rose-600 text-white text-[8px] font-black rounded-md animate-bounce uppercase tracking-tighter">BẮT BUỘC</span>
+              </div>
+              <p className="text-xs font-medium leading-relaxed italic text-rose-600">
+                 Hệ thống cần ít nhất 1 Nhóm sản phẩm và 1 Loại giá bán để hoạt động. Vui lòng thiết lập trong phần Cài đặt.
+              </p>
+           </div>
+           <button 
+              onClick={() => navigate('/settings')}
+              className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-indigo-600 transition-all flex items-center space-x-2 shrink-0"
+           >
+              <SettingsIcon size={16} />
+              <span>Đến Cài đặt</span>
+           </button>
+        </div>
+      )}
+
       <div className="bg-white p-3 rounded-[32px] border border-slate-100 shadow-sm sticky top-16 z-20">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -534,145 +562,175 @@ const ProductManager = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-10 md:space-y-12 scrollbar-hide pb-28 md:pb-10">
-              {/* Basic Info */}
-              <section className="space-y-6">
-                <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
-                  <Hash size={18} className="mr-2" /> Thông tin cơ bản
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-600">Tên sản phẩm *</label>
-                    <input required className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-bold text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="VD: iPhone 15 Pro" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-600">Mã sản phẩm (SKU) *</label>
-                    <input required className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-mono font-bold text-sm" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} placeholder="IP15P-BLK" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-600">Mã Barcode</label>
-                    <div className="relative">
-                      <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                      <input className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-mono text-sm" value={formData.barcode} onChange={e => setFormData({...formData, barcode: e.target.value})} placeholder="Quét hoặc nhập barcode" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-600">Đơn vị tính *</label>
-                    <div className="relative">
-                      <Box className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                      <input required className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold text-sm" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} placeholder="VD: Cái, Kg, Hộp..." />
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* Classification */}
-              <section className="space-y-6">
-                <div className="flex items-center justify-between">
-                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
-                     <Layers size={18} className="mr-2" /> Phân loại & Kho
-                   </h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-600">Nhóm sản phẩm *</label>
-                    <select required className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none cursor-pointer appearance-none font-bold text-sm" value={formData.groupId} onChange={e => setFormData({...formData, groupId: e.target.value})}>
-                      {productGroups.map(g => (
-                        <option key={g.id} value={g.id}>{g.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2 relative">
-                    <div className="flex items-center justify-between">
-                       <label className="text-sm font-semibold text-slate-600">Tồn kho ban đầu</label>
-                       {editingProduct && hasOrders && (
-                         <div className="flex items-center text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 animate-in fade-in">
-                            <Lock size={10} className="mr-1" /> KHÔNG THỂ SỬA
-                         </div>
-                       )}
-                    </div>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        disabled={editingProduct && hasOrders}
-                        className={`w-full px-5 py-4 border rounded-2xl outline-none font-black text-sm transition-all ${editingProduct && hasOrders ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-70' : 'bg-slate-50 border-slate-200 focus:ring-4 focus:ring-indigo-100 text-slate-800'}`} 
-                        placeholder="0"
-                        value={formatCurrencyInput(formData.stock)} 
-                        onChange={e => setFormData({...formData, stock: parseCurrencyInput(e.target.value)})} 
-                      />
-                    </div>
-                    {editingProduct && hasOrders && (
-                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-tight">
-                        * Sản phẩm đã phát sinh đơn hàng, không thể thay đổi tồn kho ban đầu để tránh sai sót số liệu.
+              {missingConfig ? (
+                <div className="py-20 text-center space-y-6">
+                   <div className="w-20 h-20 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto border border-rose-100">
+                      <AlertTriangle size={40} />
+                   </div>
+                   <div className="max-w-md mx-auto">
+                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cấu hình chưa hoàn tất</h3>
+                      <p className="text-sm text-slate-500 font-medium mt-2 leading-relaxed">
+                         Bạn cần khởi tạo Nhóm sản phẩm và Loại giá bán trước khi có thể thêm mới hàng hóa vào hệ thống.
                       </p>
-                    )}
-                  </div>
+                   </div>
+                   <button 
+                      type="button"
+                      onClick={() => navigate('/settings')}
+                      className="px-10 py-4 bg-slate-900 text-white rounded-[22px] font-black text-[11px] uppercase tracking-widest shadow-xl hover:bg-indigo-600 transition-all flex items-center justify-center space-x-2 mx-auto"
+                   >
+                      <SettingsIcon size={18} />
+                      <span>Đi tới thiết lập ngay</span>
+                   </button>
                 </div>
-              </section>
-
-              {/* Price Setup */}
-              <section className="space-y-6">
-                <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
-                  <DollarSign size={18} className="mr-2" /> Thiết lập giá bán *
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {priceTypes.map(pt => (
-                    <div key={pt.id} className="p-5 bg-indigo-50/40 rounded-[28px] border border-indigo-100 shadow-sm">
-                      <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest block mb-2">{pt.name}</label>
+              ) : (
+                <>
+                {/* Basic Info */}
+                <section className="space-y-6">
+                  <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
+                    <Hash size={18} className="mr-2" /> Thông tin cơ bản
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-600">Tên sản phẩm *</label>
+                      <input required className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-bold text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="VD: iPhone 15 Pro" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-600">Mã sản phẩm (SKU) *</label>
+                      <input required className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-mono font-bold text-sm" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} placeholder="IP15P-BLK" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-600">Mã Barcode</label>
                       <div className="relative">
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">VNĐ</span>
-                        <input 
-                          type="text"
-                          required
-                          className="w-full pl-4 pr-12 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-800 text-sm shadow-sm"
-                          value={formatCurrencyInput(prices[pt.id] ?? "")}
-                          onChange={e => setPrices({...prices, [pt.id]: parseCurrencyInput(e.target.value)})}
-                          placeholder="0"
-                        />
+                        <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-mono text-sm" value={formData.barcode} onChange={e => setFormData({...formData, barcode: e.target.value})} placeholder="Quét hoặc nhập barcode" />
                       </div>
                     </div>
-                  ))}
-                </div>
-              </section>
-
-              {/* Image Upload */}
-              <section className="space-y-6">
-                <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
-                  <ImageIcon size={18} className="mr-2" /> Hình ảnh sản phẩm
-                </h3>
-                <div className="flex flex-col md:flex-row items-center gap-10">
-                  <div className="w-44 h-44 rounded-[36px] border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center relative group shrink-0 overflow-hidden shadow-inner">
-                    {formData.image ? (
-                      <>
-                        <img src={formData.image} className="w-full h-full object-cover" />
-                        <button type="button" onClick={() => setFormData({...formData, image: ''})} className="absolute inset-0 bg-red-600/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
-                           <Trash2 size={32} />
-                        </button>
-                      </>
-                    ) : (
-                      <ImageIcon size={48} className="text-slate-200" />
-                    )}
-                  </div>
-                  <div className="flex-1 w-full space-y-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Đường dẫn Online (URL)</label>
-                      <input className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-[12px] font-medium outline-none focus:ring-2 focus:ring-indigo-500" value={formData.image && !formData.image.startsWith('data:') ? formData.image : ''} onChange={e => setFormData({...formData, image: e.target.value})} placeholder="https://example.com/image.jpg" />
+                      <label className="text-sm font-semibold text-slate-600">Đơn vị tính *</label>
+                      <div className="relative">
+                        <Box className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input required className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold text-sm" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} placeholder="VD: Cái, Kg, Hộp..." />
+                      </div>
                     </div>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-600 flex items-center justify-center space-x-2 active:scale-95 transition-all shadow-sm">
-                       <Upload size={18} /> <span>Chọn ảnh từ thiết bị</span>
-                    </button>
-                    <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
                   </div>
-                </div>
-              </section>
+                </section>
+
+                {/* Classification */}
+                <section className="space-y-6">
+                  <div className="flex items-center justify-between">
+                     <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
+                       <Layers size={18} className="mr-2" /> Phân loại & Kho
+                     </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-600">Nhóm sản phẩm *</label>
+                      <select required className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none cursor-pointer appearance-none font-bold text-sm" value={formData.groupId} onChange={e => setFormData({...formData, groupId: e.target.value})}>
+                        {productGroups.map(g => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2 relative">
+                      <div className="flex items-center justify-between">
+                         <label className="text-sm font-semibold text-slate-600">Tồn kho ban đầu</label>
+                         {editingProduct && hasOrders && (
+                           <div className="flex items-center text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 animate-in fade-in">
+                              <Lock size={10} className="mr-1" /> KHÔNG THỂ SỬA
+                           </div>
+                         )}
+                      </div>
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          disabled={editingProduct && hasOrders}
+                          className={`w-full px-5 py-4 border rounded-2xl outline-none font-black text-sm transition-all ${editingProduct && hasOrders ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-70' : 'bg-slate-50 border-slate-200 focus:ring-4 focus:ring-indigo-100 text-slate-800'}`} 
+                          placeholder="0"
+                          value={formatCurrencyInput(formData.stock)} 
+                          onChange={e => setFormData({...formData, stock: parseCurrencyInput(e.target.value)})} 
+                        />
+                      </div>
+                      {editingProduct && hasOrders && (
+                        <p className="text-[10px] text-slate-400 font-medium mt-1 leading-tight">
+                          * Sản phẩm đã phát sinh đơn hàng, không thể thay đổi tồn kho ban đầu để tránh sai sót số liệu.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {/* Price Setup */}
+                <section className="space-y-6">
+                  <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
+                    <DollarSign size={18} className="mr-2" /> Thiết lập giá bán *
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {priceTypes.map(pt => (
+                      <div key={pt.id} className="p-5 bg-indigo-50/40 rounded-[28px] border border-indigo-100 shadow-sm">
+                        <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest block mb-2">{pt.name}</label>
+                        <div className="relative">
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">VNĐ</span>
+                          <input 
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            required
+                            className="w-full pl-4 pr-12 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-black text-slate-800 text-sm shadow-sm"
+                            value={formatCurrencyInput(prices[pt.id] ?? "")}
+                            onChange={e => setPrices({...prices, [pt.id]: parseCurrencyInput(e.target.value)})}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Image Upload */}
+                <section className="space-y-6">
+                  <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
+                    <ImageIcon size={18} className="mr-2" /> Hình ảnh sản phẩm
+                  </h3>
+                  <div className="flex flex-col md:flex-row items-center gap-10">
+                    <div className="w-44 h-44 rounded-[36px] border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center relative group shrink-0 overflow-hidden shadow-inner">
+                      {formData.image ? (
+                        <>
+                          <img src={formData.image} className="w-full h-full object-cover" />
+                          <button type="button" onClick={() => setFormData({...formData, image: ''})} className="absolute inset-0 bg-red-600/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                             <Trash2 size={32} />
+                          </button>
+                        </>
+                      ) : (
+                        <ImageIcon size={48} className="text-slate-200" />
+                      )}
+                    </div>
+                    <div className="flex-1 w-full space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Đường dẫn Online (URL)</label>
+                        <input className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-[12px] font-medium outline-none focus:ring-2 focus:ring-indigo-500" value={formData.image && !formData.image.startsWith('data:') ? formData.image : ''} onChange={e => setFormData({...formData, image: e.target.value})} placeholder="https://example.com/image.jpg" />
+                      </div>
+                      <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-600 flex items-center justify-center space-x-2 active:scale-95 transition-all shadow-sm">
+                         <Upload size={18} /> <span>Chọn ảnh từ thiết bị</span>
+                      </button>
+                      <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+                    </div>
+                  </div>
+                </section>
+                </>
+              )}
             </form>
 
             <div className="p-6 md:p-8 bg-slate-50 border-t border-slate-100 flex flex-col md:flex-row justify-end gap-3 shrink-0 pb-12 md:pb-8">
               <button onClick={() => { setIsModalOpen(false); setEditingProduct(null); }} className="order-2 md:order-1 px-8 py-4 font-bold text-slate-500 hover:bg-slate-200 rounded-[22px] transition-all text-sm">
                 Hủy
               </button>
-              <button onClick={handleSubmit} className="order-1 md:order-2 px-12 py-4 bg-indigo-600 text-white rounded-[22px] font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 text-sm">
-                {editingProduct ? 'Cập nhật sản phẩm' : 'Lưu sản phẩm'}
-              </button>
+              {!missingConfig && (
+                <button onClick={handleSubmit} className="order-1 md:order-2 px-12 py-4 bg-indigo-600 text-white rounded-[22px] font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 text-sm">
+                  {editingProduct ? 'Cập nhật sản phẩm' : 'Lưu sản phẩm'}
+                </button>
+              )}
             </div>
           </div>
         </div>

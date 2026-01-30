@@ -70,6 +70,7 @@ const ProductManager = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const excelImportRef = useRef<HTMLInputElement>(null);
+  const hasInitializedRef = useRef(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -86,6 +87,13 @@ const ProductManager = () => {
   const missingConfig = productGroups.length === 0 || priceTypes.length === 0;
 
   useEffect(() => {
+    if (!isModalOpen) {
+      hasInitializedRef.current = false;
+      return;
+    }
+
+    if (hasInitializedRef.current) return;
+
     if (editingProduct) {
       setFormData({
         name: editingProduct.name,
@@ -122,7 +130,8 @@ const ProductManager = () => {
       setHasOrders(false);
     }
     setLocalError(null);
-  }, [editingProduct, isModalOpen, productGroups]);
+    hasInitializedRef.current = true;
+  }, [editingProduct, isModalOpen]);
 
   const formatCurrencyInput = (value: string | number) => {
     if (value === undefined || value === null) return "";

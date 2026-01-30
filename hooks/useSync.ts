@@ -6,19 +6,17 @@ import { useStore } from '../store';
 export const useSync = () => {
   const backendUrl = useStore(state => state.storeConfig.backendUrl?.replace(/\/$/, ''));
   const fetchInitialData = useStore(state => state.fetchInitialData);
+  const unsyncedCount = useStore(state => state.unsyncedCount);
+  const setUnsyncedCount = useStore(state => state.setUnsyncedCount);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isServerOnline, setIsServerOnline] = useState(false);
   const [lastSync, setLastSync] = useState<number | null>(
     Number(localStorage.getItem('last_sync_ts')) || null
   );
-  
-  const [unsyncedCount, setUnsyncedCount] = useState({
-    products: 0, orders: 0, customers: 0, users: 0, purchases: 0,
-    priceTypes: 0, productGroups: 0, productPrices: 0
-  });
 
   const syncTimerRef = useRef<any>(null);
+  const countTimerRef = useRef<any>(null);
   const prevTotalRef = useRef<number>(-1);
 
   const checkServerHealth = useCallback(async () => {
@@ -56,15 +54,13 @@ export const useSync = () => {
       };
       
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
-      if (total !== prevTotalRef.current) {
-        setUnsyncedCount(counts);
-        prevTotalRef.current = total;
-      }
+      setUnsyncedCount(counts);
+      prevTotalRef.current = total;
       return total;
     } catch (err) {
       return 0;
     }
-  }, []);
+  }, [setUnsyncedCount]);
 
   const syncCollection = async (tableName: string, collectionName: string) => {
     if (!backendUrl) return;
@@ -83,12 +79,9 @@ export const useSync = () => {
           continue;
         }
 
-        // CHUẨN HÓA PAYLOAD
         const cleanPayload: any = {};
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
-          // CHỈ loại bỏ các trường ID hệ thống nội bộ thực sự rỗng và KHÔNG phải là trường quan trọng của schema
-          // Trường lineId và groupId nếu bắt buộc trong PocketBase thì KHÔNG được lọc bỏ
           if ((key === 'priceTypeId' || key === 'productId' || key === 'customerId') && value === "") {
              return; 
           }
@@ -126,7 +119,6 @@ export const useSync = () => {
       }
     }
 
-    // PULL logic
     try {
       const lastSyncISO = lastSync 
         ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] 
@@ -188,6 +180,13 @@ export const useSync = () => {
   useEffect(() => {
     checkUnsynced();
     checkServerHealth();
+
+    // Polling nhanh để cập nhật Badge chuông (3 giây)
+    countTimerRef.current = setInterval(() => {
+      checkUnsynced();
+    }, 3000);
+
+    // Polling chậm hơn để thực hiện đẩy dữ liệu (30 giây)
     syncTimerRef.current = setInterval(async () => {
       const online = await checkServerHealth();
       if (online) {
@@ -195,7 +194,11 @@ export const useSync = () => {
         if (count > 0) await syncData();
       }
     }, 30000); 
-    return () => clearInterval(syncTimerRef.current);
+
+    return () => {
+      clearInterval(syncTimerRef.current);
+      clearInterval(countTimerRef.current);
+    };
   }, [checkServerHealth, checkUnsynced, backendUrl]);
 
   return { 

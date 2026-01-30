@@ -17,6 +17,13 @@ interface AppState {
   isLoading: boolean;
   error: string | null;
   
+  // Trạng thái đồng bộ toàn cục
+  unsyncedCount: {
+    products: number; orders: number; customers: number; users: number; purchases: number;
+    priceTypes: number; productGroups: number; productPrices: number;
+  };
+  setUnsyncedCount: (counts: any) => void;
+
   fetchInitialData: () => Promise<void>;
   setError: (msg: string | null) => void;
   
@@ -53,7 +60,7 @@ const DEFAULT_STORE_CONFIG: StoreConfig = {
   name: 'QueenBee POS',
   address: '123 Đường Công Nghệ, TP. HCM',
   phone: '0900.000.000',
-  costPriceTypeId: '', // Mặc định rỗng
+  costPriceTypeId: '', 
   lowStockThreshold: 10,
   bankId: 'MB',
   bankAccount: '123456789',
@@ -79,6 +86,13 @@ export const useStore = create<AppState>((set, get) => ({
   storeConfig: DEFAULT_STORE_CONFIG,
   isLoading: false,
   error: null,
+  
+  unsyncedCount: {
+    products: 0, orders: 0, customers: 0, users: 0, purchases: 0,
+    priceTypes: 0, productGroups: 0, productPrices: 0
+  },
+
+  setUnsyncedCount: (counts) => set({ unsyncedCount: counts }),
 
   setError: (error) => set({ error }),
 
@@ -241,9 +255,7 @@ export const useStore = create<AppState>((set, get) => ({
       throw new Error("Deletion blocked");
     }
 
-    // Kiểm tra sản phẩm có gán giá > 0
     const countProduct = await db.productPrices.where('priceTypeId').equals(id).filter(p => p.price > 0 && p.deleted === 0).count();
-    // Kiểm tra khách hàng sử dụng loại giá này
     const countCustomer = await db.customers.where('typeId').equals(id).filter(c => c.deleted === 0).count();
 
     if (countProduct > 0 || countCustomer > 0) {
@@ -340,10 +352,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!order) return;
     
     await (db as Dexie).transaction('rw', [db.orders, db.products], async () => {
-      // 1. Đánh dấu xóa mềm
       await db.orders.update(id, { deleted: 1, synced: 0, updatedAt: Date.now() });
-      
-      // 2. Hoàn trả kho (cộng lại)
       for (const item of order.items) {
         const p = await db.products.get(item.productId);
         if (p) {
@@ -351,7 +360,6 @@ export const useStore = create<AppState>((set, get) => ({
         }
       }
     });
-    // Sau khi xóa cần lấy lại danh sách sản phẩm để cập nhật UI tồn kho
     const products = await db.products.where('deleted').equals(0).toArray();
     set({ products });
   },
@@ -361,10 +369,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!purchase) return;
     
     await (db as Dexie).transaction('rw', [db.purchases, db.products], async () => {
-      // 1. Đánh dấu xóa mềm
       await db.purchases.update(id, { deleted: 1, synced: 0, updatedAt: Date.now() });
-      
-      // 2. Hoàn trả kho (trừ bớt vì phiếu nhập đã cộng vào trước đó)
       for (const item of purchase.items) {
         const p = await db.products.get(item.productId);
         if (p) {

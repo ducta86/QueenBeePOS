@@ -159,21 +159,21 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
   }, [currentUser]);
 
   return (
-    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 shrink-0">
-      <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
-        <button onClick={onOpenSidebar} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden shrink-0">
+    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 lg:px-8 sticky top-0 z-30 shrink-0 gap-2">
+      <div className="flex items-center space-x-1 sm:space-x-4 min-w-0">
+        <button onClick={onOpenSidebar} className="p-1.5 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden shrink-0">
           <Menu size={24} />
         </button>
         
-        <div className={`flex items-center px-2.5 py-1.5 rounded-full border transition-colors shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-          <div className={`w-1.5 h-1.5 rounded-full mr-2 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-          <span className={`text-[7px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {isOnline && isServerOnline ? 'Cloud Active' : 'System Offline'}
+        <div className={`flex items-center px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-full border transition-colors shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-200'}`}>
+          <div className={`w-1.5 h-1.5 rounded-full mr-1 sm:mr-1.5 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+          <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {isOnline && isServerOnline ? 'System Online' : 'System Offline'}
           </span>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 sm:space-x-4 ml-auto shrink-0">
+      <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
         <div className="relative">
           <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className={`p-2 rounded-full relative transition-all ${isSyncMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}>
             <Bell size={20} className={isSyncing ? 'animate-bounce text-indigo-600' : ''} />
@@ -182,9 +182,9 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
           {isSyncMenuOpen && <SyncPortalDropdown triggerRef={syncBtnRef} onClose={() => setIsSyncMenuOpen(false)} totalUnsynced={totalUnsynced} unsyncedCount={unsyncedCount} syncData={syncData} isSyncing={isSyncing} isOnline={isOnline} />}
         </div>
         
-        <button onClick={syncData} disabled={isSyncing || !isOnline} className={`flex items-center space-x-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border ${totalUnsynced > 0 ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'} disabled:opacity-50`}>
+        <button onClick={syncData} disabled={isSyncing || !isOnline} className={`flex items-center justify-center w-9 h-9 sm:w-auto sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border ${totalUnsynced > 0 ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'} disabled:opacity-50`}>
           <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-          <span className="hidden xs:inline whitespace-nowrap">{isSyncing ? 'Lưu...' : 'Đồng bộ'}</span>
+          <span className="hidden sm:inline ml-2 whitespace-nowrap">{isSyncing ? 'Lưu...' : 'Đồng bộ'}</span>
         </button>
 
         <div className="relative" ref={userMenuRef}>

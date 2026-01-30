@@ -36,6 +36,27 @@ import { Product, ProductPrice } from '../types';
 import * as XLSX from 'xlsx';
 import { Html5Qrcode } from "html5-qrcode";
 
+// Utility function to play a beep sound using Web Audio API
+const playBeep = () => {
+  try {
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(850, audioCtx.currentTime);
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.1);
+  } catch (e) {
+    console.warn("Beep failed", e);
+  }
+};
+
 const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', showConfirm = true }: any) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
     <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 text-center border border-slate-100">
@@ -81,11 +102,14 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-rea
               fps: 10,
               qrbox: { width: 250, height: 150 },
             },
-            (decodedText) => {
+            async (decodedText) => {
               if (!isMounted) return;
+              playBeep(); // Phát tiếng beep
               onScan(decodedText);
               if (navigator.vibrate) navigator.vibrate(100);
-              stopAndClose();
+              
+              // Đóng camera an toàn
+              await stopAndClose();
             },
             () => {} 
           );
@@ -99,8 +123,8 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-rea
         }
       };
 
-      // Đợi một chút để DOM element kịp render
-      const timer = setTimeout(startScanner, 100);
+      // Đợi DOM element render
+      const timer = setTimeout(startScanner, 300);
       return () => {
         isMounted = false;
         clearTimeout(timer);
@@ -112,30 +136,32 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-rea
   const stopAndClose = async () => {
     if (scannerRef.current) {
       try {
-        // Chỉ stop khi đang ở trạng thái có thể stop
         const state = scannerRef.current.getState();
         if (state === 2 || state === 3) { // 2: SCANNING, 3: PAUSED
            await scannerRef.current.stop();
         }
       } catch (e) {
-        console.warn("Stop failed (might already stopped):", e);
+        console.warn("Stop failed:", e);
       } finally {
         scannerRef.current = null;
+        onClose();
       }
+    } else {
+      onClose();
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
       <div className="bg-white w-full max-w-lg rounded-[40px] shadow-3xl overflow-hidden relative">
         <div className="p-6 border-b border-slate-50 flex items-center justify-between">
            <div className="flex items-center space-x-3">
               <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl"><Camera size={20} /></div>
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Quét mã sản phẩm</h2>
            </div>
-           <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
+           <button onClick={stopAndClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
         </div>
         
         <div className="p-6">
@@ -166,7 +192,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-rea
           </div>
         </div>
         <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
-           <button onClick={onClose} className="px-8 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all">Đóng</button>
+           <button onClick={stopAndClose} className="px-8 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all">Đóng</button>
         </div>
       </div>
       <style>{`

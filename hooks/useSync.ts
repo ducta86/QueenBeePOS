@@ -74,19 +74,20 @@ export const useSync = () => {
     const allLocalUnsynced = await table.where('synced').equals(0).toArray();
     for (const item of allLocalUnsynced) {
       try {
-        const { synced, deleted, id: localId, ...payload } = item;
+        // LỌC DỮ LIỆU: Loại bỏ các trường hệ thống Local mà PocketBase không dùng/không cho phép ghi đè
+        // PocketBase tự quản lý created/updated. Việc gửi 'updatedAt' hay 'deleted' (nếu ko có trong schema) sẽ gây lỗi 400.
+        const { synced, deleted, updatedAt, createdAt, id: localId, ...cleanPayload } = item;
         
-        // Xử lý Xóa
+        // Xử lý Xóa nếu bản ghi bị đánh dấu deleted=1
         if (deleted === 1) {
           const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, { method: 'DELETE' });
           if (deleteResp.ok || deleteResp.status === 404) {
-            // Nếu xóa mềm ở local và đã delete trên server (hoặc ko tồn tại trên server) thì xóa cứng ở local
             await table.delete(localId);
           }
           continue;
         }
 
-        // Kiểm tra tồn tại trên server
+        // Bước 1: Kiểm tra bản ghi đã tồn tại trên Server chưa (Tránh lỗi 404 khi PATCH)
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
         
@@ -96,8 +97,8 @@ export const useSync = () => {
         
         const method = exists ? 'PATCH' : 'POST';
         
-        // PocketBase yêu cầu ID trong body khi POST để giữ nguyên ID từ local
-        const body = method === 'POST' ? { id: localId, ...payload } : payload;
+        // PocketBase yêu cầu ID trong body khi POST nếu muốn tự định nghĩa ID
+        const body = method === 'POST' ? { id: localId, ...cleanPayload } : cleanPayload;
 
         const response = await fetch(url, {
           method,
@@ -109,10 +110,15 @@ export const useSync = () => {
           await table.update(localId, { synced: 1 });
         } else {
           const errData = await response.json();
-          console.error(`Sync error for ${collectionName}:`, errData);
+          // Log chi tiết lỗi để debug trong Console
+          console.error(`Sync 400 Error for ${collectionName}:`, {
+            sentBody: body,
+            serverMsg: errData.message,
+            validation: errData.data
+          });
         }
       } catch (err) {
-        console.error(`Fetch failed for ${collectionName}:`, err);
+        console.error(`Network Error for ${collectionName}:`, err);
       }
     }
 
@@ -131,10 +137,16 @@ export const useSync = () => {
           const local = await table.get(record.id);
           const remoteTs = new Date(record.updated).getTime();
           
-          // Chỉ cập nhật nếu local chưa có hoặc dữ liệu server mới hơn
           if (!local || remoteTs > (local.updatedAt || 0)) {
-            // Quan trọng: Dữ liệu pull về từ PB có thể thiếu trường 'deleted', ta mặc định là 0
-            await table.put({ ...record, synced: 1, deleted: 0, updatedAt: remoteTs });
+            // Khi lưu ngược về Local, ta map ngược lại các trường hệ thống của Local
+            await table.put({ 
+              ...record, 
+              synced: 1, 
+              deleted: 0, 
+              updatedAt: remoteTs,
+              // Giữ lại các trường quan trọng nếu schema local yêu cầu
+              createdAt: record.created ? new Date(record.created).getTime() : Date.now()
+            });
           }
         }
       }
@@ -150,17 +162,19 @@ export const useSync = () => {
 
     setIsSyncing(true);
     try {
-      // ĐỒNG BỘ TUẦN TỰ THEO THỨ TỰ QUAN HỆ DỮ LIỆU
-      // Bước 1: Danh mục cha
+      // THỨ TỰ ĐỒNG BỘ LÀ QUAN TRỌNG (Sequential)
+      // 1. Danh mục cấp 1 (Không phụ thuộc ai)
       await syncCollection('priceTypes', 'price_types');
       await syncCollection('productGroups', 'product_groups');
       await syncCollection('users', 'profiles');
       
-      // Bước 2: Dữ liệu chính (phụ thuộc vào danh mục cha)
+      // 2. Danh mục cấp 2 (Phụ thuộc cấp 1)
+      // Ví dụ: products cần groupId, priceTypeId
       await syncCollection('products', 'products');
       await syncCollection('customers', 'customers');
       
-      // Bước 3: Dữ liệu chi tiết (phụ thuộc vào sản phẩm/khách hàng)
+      // 3. Dữ liệu chi tiết (Phụ thuộc cấp 2)
+      // Ví dụ: product_prices CẦN productId phải tồn tại trên Server
       await syncCollection('productPrices', 'product_prices');
       await syncCollection('orders', 'orders');
       await syncCollection('purchases', 'purchases');
@@ -171,7 +185,7 @@ export const useSync = () => {
       await checkUnsynced();
       await fetchInitialData();
     } catch (error) {
-      console.error('CRITICAL: Sync process failed:', error);
+      console.error('Critical Sync Failure:', error);
     } finally {
       setIsSyncing(false);
     }

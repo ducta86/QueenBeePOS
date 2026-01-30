@@ -4,15 +4,135 @@ import {
   Barcode, CheckCircle, ChevronDown, DollarSign, FileDown, FileImage, 
   Loader2, Minus, OctagonAlert, Package, PackageSearch, Plus, Printer, 
   QrCode, RefreshCw, ShoppingCart, Tag, Trash2, User, UserX, Wallet, X,
-  Search
+  Search, Camera, FlipHorizontal
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { db, generateId } from '../db';
 import { useStore } from '../store';
 import { Customer, OrderItem, Product } from '../types';
 import html2canvas from 'html2canvas';
+import { Html5Qrcode } from "html5-qrcode";
 
 type PrintSize = '58mm' | '80mm' | 'A4';
+
+const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onClose: () => void, onScan: (code: string) => void }) => {
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [error, setScannerError] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (isOpen) {
+      setIsInitializing(true);
+      setScannerError(null);
+      
+      const startScanner = async () => {
+        try {
+          const html5QrCode = new Html5Qrcode("pos-reader");
+          scannerRef.current = html5QrCode;
+
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 150 },
+            },
+            (decodedText) => {
+              if (!isMounted) return;
+              onScan(decodedText);
+              if (navigator.vibrate) navigator.vibrate(100);
+              stopAndClose();
+            },
+            () => {} 
+          );
+          if (isMounted) setIsInitializing(false);
+        } catch (err) {
+          console.error("Camera error:", err);
+          if (isMounted) {
+            setScannerError("Không thể truy cập Camera. Vui lòng kiểm tra quyền trình duyệt.");
+            setIsInitializing(false);
+          }
+        }
+      };
+
+      const timer = setTimeout(startScanner, 100);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+        stopAndClose();
+      };
+    }
+  }, [isOpen]);
+
+  const stopAndClose = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 2 || state === 3) {
+           await scannerRef.current.stop();
+        }
+      } catch (e) {
+        console.warn("Stop failed:", e);
+      } finally {
+        scannerRef.current = null;
+      }
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
+      <div className="bg-white w-full max-w-lg rounded-[40px] shadow-3xl overflow-hidden relative">
+        <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+           <div className="flex items-center space-x-3">
+              <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl"><Camera size={20} /></div>
+              <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Quét mã sản phẩm</h2>
+           </div>
+           <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
+        </div>
+        
+        <div className="p-6">
+          <div className="relative aspect-square md:aspect-video bg-slate-900 rounded-[28px] overflow-hidden border-4 border-slate-100 shadow-inner">
+             <div id="pos-reader" className="w-full h-full"></div>
+             {isInitializing && (
+               <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-slate-900/60">
+                  <Loader2 size={40} className="animate-spin mb-4" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Đang khởi tạo Camera...</p>
+               </div>
+             )}
+             {error && (
+               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 text-rose-400 bg-slate-900/90">
+                  <OctagonAlert size={48} className="mb-4" />
+                  <p className="text-sm font-bold leading-relaxed">{error}</p>
+               </div>
+             )}
+             {!isInitializing && !error && (
+               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="w-[250px] h-[150px] border-2 border-indigo-500 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative">
+                      <div className="absolute top-0 left-0 w-full h-0.5 bg-indigo-400 animate-[scan_2s_linear_infinite]"></div>
+                  </div>
+               </div>
+             )}
+          </div>
+          <div className="mt-8 text-center">
+             <p className="text-sm font-medium text-slate-600 italic">Đưa mã vạch vào khung ngắm để tự động nhận diện.</p>
+          </div>
+        </div>
+        <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
+           <button onClick={onClose} className="px-8 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all">Đóng</button>
+        </div>
+      </div>
+      <style>{`
+        @keyframes scan {
+          0% { top: 0; }
+          50% { top: 100%; }
+          100% { top: 0; }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 const POS = () => {
   const { products, customers, priceTypes, updateStock, setError, error, storeConfig } = useStore();
@@ -28,6 +148,7 @@ const POS = () => {
   const [cashReceived, setCashReceived] = useState<string>('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [currentPrices, setCurrentPrices] = useState<Record<string, number>>({});
   const [printSize, setPrintSize] = useState<PrintSize>(storeConfig.printerPaperSize || '80mm');
@@ -89,6 +210,18 @@ const POS = () => {
     }
     setProductSearch('');
     setIsProductSearchFocused(false);
+  };
+
+  const handleBarcodeScan = (code: string) => {
+    const product = products.find(p => p.barcode === code || p.code === code);
+    if (product) {
+      addToCart(product);
+      setProductSearch('');
+    } else {
+      setError(`Không tìm thấy mã: ${code}`);
+      setTimeout(() => setError(null), 3000);
+    }
+    setShowScanner(false);
   };
 
   const handleQtyChange = (productId: string, val: number) => {
@@ -301,13 +434,19 @@ const POS = () => {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Hàng hóa</p>
                   <input 
                     className="w-full bg-transparent border-none outline-none text-sm font-bold p-0 placeholder:text-slate-300 focus:ring-0"
-                    placeholder="Quét mã vạch / Tìm tên SP..."
+                    placeholder="Tìm tên hoặc quét..."
                     value={productSearch}
                     onFocus={() => setIsProductSearchFocused(true)}
                     onChange={(e) => setProductSearch(e.target.value)}
                   />
                 </div>
-                <Barcode size={18} className="text-slate-300" />
+                <button 
+                  type="button"
+                  onClick={() => setShowScanner(true)}
+                  className="p-2 hover:bg-indigo-50 rounded-xl transition-all text-indigo-600 active:scale-90"
+                >
+                  <Barcode size={24} strokeWidth={2.5} />
+                </button>
               </div>
               {isProductSearchFocused && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
@@ -477,6 +616,12 @@ const POS = () => {
            </div>
         </div>
       </div>
+
+      <BarcodeScannerModal 
+        isOpen={showScanner} 
+        onClose={() => setShowScanner(false)} 
+        onScan={handleBarcodeScan} 
+      />
 
       {showPaymentModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 no-print">

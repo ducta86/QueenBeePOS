@@ -16,8 +16,8 @@ import OrderHistory from './components/OrderHistory';
 import PurchaseManager from './components/PurchaseManager';
 import Reports from './components/Reports';
 import Login from './components/Login';
-import { useStore } from './store';
-import { useSync } from './hooks/useSync';
+import { useStore } from '../store';
+import { useSync } from '../hooks/useSync';
 
 const SidebarItem = React.memo(({ icon: Icon, label, path, active, onClick }: { icon: any, label: string, path: string, active: boolean, onClick: () => void }) => (
   <Link 
@@ -54,7 +54,6 @@ const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount,
     window.addEventListener('scroll', updatePosition, true);
 
     const handleOutside = (e: MouseEvent) => {
-      // Nếu click không nằm trong dropdown và không nằm trong nút trigger thì mới đóng
       if (
         dropdownRef.current && 
         !dropdownRef.current.contains(e.target as Node) && 
@@ -126,7 +125,7 @@ const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount,
   );
 };
 
-const Header = React.memo(() => {
+const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => {
   const syncBtnRef = useRef<HTMLButtonElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [isSyncMenuOpen, setIsSyncMenuOpen] = useState(false);
@@ -138,22 +137,18 @@ const Header = React.memo(() => {
   const { syncData, isSyncing, unsyncedCount, totalUnsynced, isServerOnline, checkUnsynced } = useSync();
 
   useEffect(() => {
-    const onlineHandler = () => setIsOnline(true);
-    const offlineHandler = () => setIsOnline(false);
-    window.addEventListener('online', onlineHandler);
-    window.addEventListener('offline', offlineHandler);
-    
-    const outsideHandler = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    const handleOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setIsUserMenuOpen(false);
     };
-    
-    document.addEventListener('mousedown', outsideHandler);
+    document.addEventListener('mousedown', handleOutside);
     return () => {
-      window.removeEventListener('online', onlineHandler);
-      window.removeEventListener('offline', offlineHandler);
-      document.removeEventListener('mousedown', outsideHandler);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('mousedown', handleOutside);
     };
   }, []);
 
@@ -165,14 +160,20 @@ const Header = React.memo(() => {
 
   return (
     <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 shrink-0">
-      <div className={`flex items-center px-3 py-1.5 rounded-full border transition-colors ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-        <div className={`w-1.5 h-1.5 rounded-full mr-2 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-        <span className={`text-[7px] sm:text-[10px] font-black uppercase tracking-widest ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
-          {isOnline && isServerOnline ? 'Cloud Active' : 'System Offline'}
-        </span>
+      <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+        <button onClick={onOpenSidebar} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden shrink-0">
+          <Menu size={24} />
+        </button>
+        
+        <div className={`flex items-center px-2.5 py-1.5 rounded-full border transition-colors shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+          <div className={`w-1.5 h-1.5 rounded-full mr-2 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+          <span className={`text-[7px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {isOnline && isServerOnline ? 'Cloud Active' : 'System Offline'}
+          </span>
+        </div>
       </div>
 
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-2 sm:space-x-4 ml-auto shrink-0">
         <div className="relative">
           <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className={`p-2 rounded-full relative transition-all ${isSyncMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}>
             <Bell size={20} className={isSyncing ? 'animate-bounce text-indigo-600' : ''} />
@@ -181,13 +182,13 @@ const Header = React.memo(() => {
           {isSyncMenuOpen && <SyncPortalDropdown triggerRef={syncBtnRef} onClose={() => setIsSyncMenuOpen(false)} totalUnsynced={totalUnsynced} unsyncedCount={unsyncedCount} syncData={syncData} isSyncing={isSyncing} isOnline={isOnline} />}
         </div>
         
-        <button onClick={syncData} disabled={isSyncing || !isOnline} className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${totalUnsynced > 0 ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'} disabled:opacity-50`}>
+        <button onClick={syncData} disabled={isSyncing || !isOnline} className={`flex items-center space-x-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border ${totalUnsynced > 0 ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'} disabled:opacity-50`}>
           <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-          <span className="hidden xs:inline">{isSyncing ? 'Đang lưu...' : 'Đồng bộ'}</span>
+          <span className="hidden xs:inline whitespace-nowrap">{isSyncing ? 'Lưu...' : 'Đồng bộ'}</span>
         </button>
 
         <div className="relative" ref={userMenuRef}>
-          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className={`flex items-center space-x-2 p-1 rounded-2xl transition-all border border-transparent ${isUserMenuOpen ? 'bg-white shadow-lg border-slate-100' : 'hover:bg-slate-50'}`}>
+          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className={`flex items-center space-x-1 sm:space-x-2 p-1 rounded-2xl transition-all border border-transparent ${isUserMenuOpen ? 'bg-white shadow-lg border-slate-100' : 'hover:bg-slate-50'}`}>
             <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-[10px] shrink-0">{getInitials()}</div>
             <ChevronDown size={14} className={`text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -259,7 +260,7 @@ const AppContent = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header />
+        <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
         <div className="flex-1 overflow-y-auto p-4 lg:p-8 scrollbar-hide">
           <Routes>
             <Route path="/" element={<Dashboard />} />

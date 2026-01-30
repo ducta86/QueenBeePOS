@@ -28,10 +28,13 @@ import {
   Lock,
   CloudOff,
   Settings as SettingsIcon,
-  GitBranch
+  GitBranch,
+  Camera,
+  OctagonAlert
 } from 'lucide-react';
 import { Product, ProductPrice } from '../types';
 import * as XLSX from 'xlsx';
+import { Html5Qrcode } from "html5-qrcode";
 
 const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', showConfirm = true }: any) => (
   <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -42,11 +45,11 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', s
       <h3 className="text-xl font-bold text-slate-800 mb-2 uppercase tracking-tight">{title}</h3>
       <p className="text-slate-500 mb-8 text-sm leading-relaxed">{message}</p>
       <div className="flex gap-3">
-        <button onClick={onCancel} className="flex-1 py-4 font-bold text-slate-500 hover:bg-slate-50 rounded-2xl transition-all text-sm uppercase tracking-widest">
+        <button onClick={onCancel} className="flex-1 py-4 font-bold text-slate-500 hover:bg-slate-50 rounded-2xl transition-all text-[11px] uppercase tracking-widest">
           {showConfirm ? 'Hủy' : 'Đã hiểu'}
         </button>
         {showConfirm && (
-          <button onClick={onConfirm} className={`flex-1 py-4 font-bold text-white rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest ${type === 'danger' ? 'bg-red-600 hover:bg-red-700 shadow-red-100' : 'bg-amber-600 hover:bg-amber-700 shadow-amber-100'}`}>
+          <button onClick={onConfirm} className={`flex-1 py-4 font-bold text-white rounded-2xl shadow-lg transition-all text-[11px] uppercase tracking-widest ${type === 'danger' ? 'bg-red-600 hover:bg-red-700 shadow-red-100' : 'bg-amber-600 hover:bg-amber-700 shadow-amber-100'}`}>
             Xác nhận
           </button>
         )}
@@ -54,6 +57,128 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', s
     </div>
   </div>
 );
+
+const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-reader" }: { isOpen: boolean, onClose: () => void, onScan: (code: string) => void, scannerId?: string }) => {
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [error, setScannerError] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (isOpen) {
+      setIsInitializing(true);
+      setScannerError(null);
+      
+      const startScanner = async () => {
+        try {
+          const html5QrCode = new Html5Qrcode(scannerId);
+          scannerRef.current = html5QrCode;
+
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 150 },
+            },
+            (decodedText) => {
+              if (!isMounted) return;
+              onScan(decodedText);
+              if (navigator.vibrate) navigator.vibrate(100);
+              stopAndClose();
+            },
+            () => {} 
+          );
+          if (isMounted) setIsInitializing(false);
+        } catch (err) {
+          console.error("Camera error:", err);
+          if (isMounted) {
+            setScannerError("Không thể truy cập Camera. Vui lòng kiểm tra quyền trình duyệt.");
+            setIsInitializing(false);
+          }
+        }
+      };
+
+      // Đợi một chút để DOM element kịp render
+      const timer = setTimeout(startScanner, 100);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+        stopAndClose();
+      };
+    }
+  }, [isOpen]);
+
+  const stopAndClose = async () => {
+    if (scannerRef.current) {
+      try {
+        // Chỉ stop khi đang ở trạng thái có thể stop
+        const state = scannerRef.current.getState();
+        if (state === 2 || state === 3) { // 2: SCANNING, 3: PAUSED
+           await scannerRef.current.stop();
+        }
+      } catch (e) {
+        console.warn("Stop failed (might already stopped):", e);
+      } finally {
+        scannerRef.current = null;
+      }
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
+      <div className="bg-white w-full max-w-lg rounded-[40px] shadow-3xl overflow-hidden relative">
+        <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+           <div className="flex items-center space-x-3">
+              <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl"><Camera size={20} /></div>
+              <h2 className="text-xs font-black uppercase tracking-widest text-slate-800">Quét mã sản phẩm</h2>
+           </div>
+           <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
+        </div>
+        
+        <div className="p-6">
+          <div className="relative aspect-square md:aspect-video bg-slate-900 rounded-[28px] overflow-hidden border-4 border-slate-100 shadow-inner">
+             <div id={scannerId} className="w-full h-full"></div>
+             {isInitializing && (
+               <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-slate-900/60">
+                  <Loader2 size={40} className="animate-spin mb-4" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Đang khởi tạo Camera...</p>
+               </div>
+             )}
+             {error && (
+               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 text-rose-400 bg-slate-900/90">
+                  <OctagonAlert size={48} className="mb-4" />
+                  <p className="text-sm font-bold leading-relaxed">{error}</p>
+               </div>
+             )}
+             {!isInitializing && !error && (
+               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="w-[250px] h-[150px] border-2 border-indigo-500 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative">
+                      <div className="absolute top-0 left-0 w-full h-0.5 bg-indigo-400 animate-[p-scan_2s_linear_infinite]"></div>
+                  </div>
+               </div>
+             )}
+          </div>
+          <div className="mt-8 text-center">
+             <p className="text-sm font-medium text-slate-600 italic">Đưa mã vạch vào khung ngắm để tự động nhận diện.</p>
+          </div>
+        </div>
+        <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
+           <button onClick={onClose} className="px-8 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all">Đóng</button>
+        </div>
+      </div>
+      <style>{`
+        @keyframes p-scan {
+          0% { top: 0; }
+          50% { top: 100%; }
+          100% { top: 0; }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 const ProductManager = () => {
   const navigate = useNavigate();
@@ -67,6 +192,8 @@ const ProductManager = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [hasOrders, setHasOrders] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showSearchScanner, setShowSearchScanner] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const excelImportRef = useRef<HTMLInputElement>(null);
@@ -131,7 +258,7 @@ const ProductManager = () => {
     }
     setLocalError(null);
     hasInitializedRef.current = true;
-  }, [editingProduct, isModalOpen]);
+  }, [editingProduct, isModalOpen, productGroups]);
 
   const formatCurrencyInput = (value: string | number) => {
     if (value === undefined || value === null) return "";
@@ -392,13 +519,13 @@ const ProductManager = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex-1 flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm">
-            <button onClick={handleExportExcel} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 font-bold transition-all text-sm">
+          <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm flex-nowrap">
+            <button onClick={handleExportExcel} className="flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 font-bold transition-all text-sm">
               <Download size={18} />
               <span className="hidden sm:inline">Xuất Excel</span>
             </button>
-            <div className="w-px h-6 bg-slate-100 self-center"></div>
-            <button onClick={() => excelImportRef.current?.click()} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 font-bold transition-all text-sm">
+            <div className="w-px h-6 bg-slate-100 self-center mx-1"></div>
+            <button onClick={() => excelImportRef.current?.click()} className="flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 font-bold transition-all text-sm">
               <FileSpreadsheet size={18} />
               <span className="hidden sm:inline">Nhập Excel</span>
             </button>
@@ -407,7 +534,7 @@ const ProductManager = () => {
 
           <button 
             onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
-            className="flex-1 sm:flex-none flex items-center space-x-2 bg-indigo-600 text-white px-8 py-4 rounded-[22px] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+            className="flex items-center space-x-2 bg-indigo-600 text-white px-8 py-4 rounded-[22px] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 whitespace-nowrap"
           >
             <Plus size={20} />
             <span>Thêm sản phẩm</span>
@@ -415,44 +542,27 @@ const ProductManager = () => {
         </div>
       </div>
 
-      {missingConfig && (
-        <div className="p-6 rounded-[32px] border border-rose-400 bg-rose-50 flex flex-col md:flex-row items-center gap-6 animate-in slide-in-from-top-2 shadow-sm">
-           <div className="p-4 bg-rose-600 text-white rounded-2xl shadow-sm border border-rose-500 shrink-0">
-              <AlertCircle size={32} />
-           </div>
-           <div className="flex-1 text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start space-x-2 mb-1">
-                 <h4 className="font-black uppercase tracking-widest text-[10px] text-rose-700">Thiết lập danh mục cơ bản</h4>
-                 <span className="px-2 py-0.5 bg-rose-600 text-white text-[8px] font-black rounded-md animate-bounce uppercase tracking-tighter">BẮT BUỘC</span>
-              </div>
-              <p className="text-xs font-medium leading-relaxed italic text-rose-600">
-                 Hệ thống cần ít nhất 1 Nhóm sản phẩm và 1 Loại giá bán để hoạt động. Vui lòng thiết lập trong phần Cài đặt.
-              </p>
-           </div>
-           <button 
-              onClick={() => navigate('/settings')}
-              className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-indigo-600 transition-all flex items-center space-x-2 shrink-0"
-           >
-              <SettingsIcon size={16} />
-              <span>Đến Cài đặt</span>
-           </button>
-        </div>
-      )}
-
       <div className="bg-white p-3 rounded-[32px] border border-slate-100 shadow-sm sticky top-16 z-20">
-        <div className="relative">
+        <div className="relative group flex items-center">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
             placeholder="Tìm theo tên, mã SKU hoặc barcode..." 
-            className="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold transition-all"
+            className="w-full pl-11 pr-14 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          <button 
+            type="button"
+            onClick={() => setShowSearchScanner(true)}
+            className="absolute right-3 p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
+            title="Tìm kiếm bằng Camera"
+          >
+            <Barcode size={26} strokeWidth={3} />
+          </button>
         </div>
       </div>
 
-      {/* Desktop View */}
       <div className="hidden md:block bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -470,7 +580,7 @@ const ProductManager = () => {
                 <td className="px-6 py-5">
                   <div className="flex items-center space-x-4">
                     <div className="w-14 h-14 rounded-2xl bg-slate-100 overflow-hidden flex items-center justify-center text-slate-400 border border-slate-200">
-                      {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <Package size={28} />}
+                      {product.image ? <img src={product.image} className="w-full h-full object-cover" alt="" /> : <Package size={28} />}
                     </div>
                     <div>
                       <div className="flex items-center space-x-2">
@@ -521,13 +631,12 @@ const ProductManager = () => {
         </table>
       </div>
 
-      {/* Mobile View */}
       <div className="md:hidden space-y-4">
         {filteredProducts.map((product) => (
           <div key={product.id} className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm active:scale-[0.98] transition-all">
             <div className="flex items-start space-x-4 mb-4">
               <div className="w-16 h-16 rounded-[20px] bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <Package size={24} className="text-slate-300" />}
+                {product.image ? <img src={product.image} className="w-full h-full object-cover" alt="" /> : <Package size={24} className="text-slate-300" />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between mb-1">
@@ -558,7 +667,20 @@ const ProductManager = () => {
         </div>
       )}
 
-      {/* Add/Edit Product Modal */}
+      <BarcodeScannerModal 
+        isOpen={showScanner} 
+        onClose={() => setShowScanner(false)} 
+        onScan={(code) => setFormData(prev => ({ ...prev, barcode: code }))} 
+        scannerId="product-edit-reader"
+      />
+
+      <BarcodeScannerModal 
+        isOpen={showSearchScanner} 
+        onClose={() => setShowSearchScanner(false)} 
+        onScan={(code) => setSearchTerm(code)} 
+        scannerId="product-search-reader"
+      />
+
       {isModalOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-0 md:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-4xl rounded-none md:rounded-[40px] shadow-3xl overflow-hidden flex flex-col h-full md:h-auto max-h-[100vh] md:max-h-[95vh] animate-in zoom-in-95">
@@ -594,7 +716,6 @@ const ProductManager = () => {
                 </div>
               ) : (
                 <>
-                {/* Basic Info */}
                 <section className="space-y-6">
                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
                     <Hash size={18} className="mr-2" /> Thông tin cơ bản
@@ -610,9 +731,16 @@ const ProductManager = () => {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-semibold text-slate-600">Mã Barcode</label>
-                      <div className="relative">
-                        <Barcode className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        <input className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-mono text-sm" value={formData.barcode} onChange={e => setFormData({...formData, barcode: e.target.value})} placeholder="Quét hoặc nhập barcode" />
+                      <div className="relative group flex items-center">
+                        <input className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-mono text-sm" value={formData.barcode} onChange={e => setFormData({...formData, barcode: e.target.value})} placeholder="Quét hoặc nhập barcode" />
+                        <button 
+                          type="button"
+                          onClick={() => setShowScanner(true)}
+                          className="absolute right-4 p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all active:scale-90"
+                          title="Quét barcode bằng camera"
+                        >
+                          <Barcode size={26} strokeWidth={3} />
+                        </button>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -625,7 +753,6 @@ const ProductManager = () => {
                   </div>
                 </section>
 
-                {/* Classification */}
                 <section className="space-y-6">
                   <div className="flex items-center justify-between">
                      <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
@@ -647,9 +774,6 @@ const ProductManager = () => {
                         <GitBranch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold text-sm" value={formData.lineId} onChange={e => setFormData({...formData, lineId: e.target.value})} placeholder="VD: Premium, Seasonal..." />
                       </div>
-                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-tight italic">
-                        * Thông tin bổ sung dùng cho phân tích báo cáo nâng cao.
-                      </p>
                     </div>
                     <div className="space-y-2 relative">
                       <div className="flex items-center justify-between">
@@ -672,16 +796,10 @@ const ProductManager = () => {
                           onChange={e => setFormData({...formData, stock: parseCurrencyInput(e.target.value)})} 
                         />
                       </div>
-                      {editingProduct && hasOrders && (
-                        <p className="text-[10px] text-slate-400 font-medium mt-1 leading-tight">
-                          * Sản phẩm đã phát sinh đơn hàng, không thể thay đổi tồn kho ban đầu để tránh sai sót số liệu.
-                        </p>
-                      )}
                     </div>
                   </div>
                 </section>
 
-                {/* Price Setup */}
                 <section className="space-y-6">
                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
                     <DollarSign size={18} className="mr-2" /> Thiết lập giá bán *
@@ -708,7 +826,6 @@ const ProductManager = () => {
                   </div>
                 </section>
 
-                {/* Image Upload */}
                 <section className="space-y-6">
                   <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-wider flex items-center">
                     <ImageIcon size={18} className="mr-2" /> Hình ảnh sản phẩm
@@ -717,7 +834,7 @@ const ProductManager = () => {
                     <div className="w-44 h-44 rounded-[36px] border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center relative group shrink-0 overflow-hidden shadow-inner">
                       {formData.image ? (
                         <>
-                          <img src={formData.image} className="w-full h-full object-cover" />
+                          <img src={formData.image} className="w-full h-full object-cover" alt="" />
                           <button type="button" onClick={() => setFormData({...formData, image: ''})} className="absolute inset-0 bg-red-600/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
                              <Trash2 size={32} />
                           </button>

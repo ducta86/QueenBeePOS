@@ -17,7 +17,6 @@ export const useSync = () => {
 
   const syncTimerRef = useRef<any>(null);
   const countTimerRef = useRef<any>(null);
-  const prevTotalRef = useRef<number>(-1);
 
   const checkServerHealth = useCallback(async () => {
     if (!backendUrl) return false;
@@ -53,10 +52,8 @@ export const useSync = () => {
         purchases: puCount, priceTypes: ptCount, productGroups: pgCount, productPrices: ppCount  
       };
       
-      const total = Object.values(counts).reduce((a, b) => a + b, 0);
       setUnsyncedCount(counts);
-      prevTotalRef.current = total;
-      return total;
+      return Object.values(counts).reduce((a, b) => a + b, 0);
     } catch (err) {
       return 0;
     }
@@ -79,14 +76,23 @@ export const useSync = () => {
           continue;
         }
 
+        // --- KIỂM TRA ĐỊNH DẠNG ID RELATION TRƯỚC KHI GỬI ---
         const cleanPayload: any = {};
+        let hasInvalidRelation = false;
+
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
-          if ((key === 'priceTypeId' || key === 'productId' || key === 'customerId') && value === "") {
-             return; 
+          // PocketBase Relation IDs phải đúng 15 ký tự
+          if (['priceTypeId', 'productId', 'customerId', 'groupId'].includes(key)) {
+             if (value && String(value).length !== 15) {
+                console.warn(`Sync Warning: Invalid Relation ID length for ${key} in ${collectionName}. Skipping record.`, value);
+                hasInvalidRelation = true;
+             }
           }
-          cleanPayload[key] = value;
+          if (value !== "") cleanPayload[key] = value;
         });
+
+        if (hasInvalidRelation) continue;
 
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
@@ -109,9 +115,9 @@ export const useSync = () => {
         } else {
           const errData = await response.json();
           console.group(`Sync Error 400: ${collectionName}`);
-          console.error("Server Message:", errData.message);
-          console.error("Validation Details:", errData.data);
-          console.log("Payload sent:", body);
+          console.error("Message:", errData.message);
+          console.error("Data:", errData.data);
+          console.log("Payload:", body);
           console.groupEnd();
         }
       } catch (err) {
@@ -119,6 +125,7 @@ export const useSync = () => {
       }
     }
 
+    // PULL DATA FROM SERVER
     try {
       const lastSyncISO = lastSync 
         ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] 
@@ -156,6 +163,7 @@ export const useSync = () => {
 
     setIsSyncing(true);
     try {
+      // Quan trọng: Phải đồng bộ các bảng "Cha" trước để tránh lỗi Relation trên Server
       await syncCollection('priceTypes', 'price_types');
       await syncCollection('productGroups', 'product_groups');
       await syncCollection('users', 'profiles');
@@ -181,19 +189,17 @@ export const useSync = () => {
     checkUnsynced();
     checkServerHealth();
 
-    // Polling nhanh để cập nhật Badge chuông (3 giây)
     countTimerRef.current = setInterval(() => {
       checkUnsynced();
-    }, 3000);
+    }, 5000);
 
-    // Polling chậm hơn để thực hiện đẩy dữ liệu (30 giây)
     syncTimerRef.current = setInterval(async () => {
       const online = await checkServerHealth();
       if (online) {
         const count = await checkUnsynced();
         if (count > 0) await syncData();
       }
-    }, 30000); 
+    }, 60000); 
 
     return () => {
       clearInterval(syncTimerRef.current);

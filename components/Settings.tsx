@@ -67,7 +67,7 @@ const POPULAR_BANKS: Bank[] = [
   { id: 'BIDV', name: 'BIDV', logo: 'https://api.vietqr.io/img/BIDV.png', shortName: 'BIDV', code: 'BIDV' },
   { id: 'VBA', name: 'Agribank', logo: 'https://api.vietqr.io/img/VBA.png', shortName: 'VBA', code: 'VBA' },
   { id: 'MB', name: 'MBBank', logo: 'https://api.vietqr.io/img/MB.png', shortName: 'MBBank', code: 'MB' },
-  { id: 'TCB', name: 'Techcombank', logo: 'https://api.vietqr.io/img/TCB.png', shortName: 'TCB', code: 'TCB' },
+  { id: 'TCB', name: 'Techcombank', logo: 'https://api.vietqr.io/img/TCB.png', shortName: 'Techcombank', code: 'TCB' },
 ];
 
 const ConfirmDialog = ({ title, message, onConfirm, onCancel, type = 'danger', showConfirm = true }: any) => (
@@ -336,7 +336,7 @@ const Settings = () => {
         <p className="text-slate-500 text-sm font-medium">Cấu hình vận hành và kết nối LAN Cloud.</p>
       </div>
 
-      <div className="flex flex-wrap bg-white p-2 rounded-[24px] border border-slate-100 shadow-sm w-full gap-2 sticky top-16 z-20 overflow-visible">
+      <div className="flex flex-wrap bg-white p-2 rounded-[24px] border border-slate-100 shadow-sm w-full gap-2 overflow-visible">
         {(['prices', 'groups', 'loyalty', 'store', 'printer', 'account', 'sync'] as const).map(tab => (
           <button 
             key={tab}
@@ -448,7 +448,7 @@ const Settings = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Họ và tên</label>
                   <div className="relative">
                     <UserIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                    <input className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
+                    <input className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-2 focus:ring-indigo-50 transition-all text-sm" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -456,7 +456,7 @@ const Settings = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mật khẩu mới</label>
                     <div className="relative group">
                       <Key className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                      <input type={showNewPassword ? "text" : "password"} className="w-full pl-14 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Để trống nếu không đổi" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                      <input type={showNewPassword ? "text" : "password"} className="w-full pl-14 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-2 focus:ring-indigo-50 text-sm" placeholder="Để trống nếu không đổi" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                       <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300">
                         {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
@@ -464,7 +464,7 @@ const Settings = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Xác nhận mật khẩu</label>
-                    <input type="password" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="Nhập lại mật khẩu" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                    <input type="password" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-[22px] font-bold outline-none focus:ring-2 focus:ring-indigo-50 text-sm" placeholder="Nhập lại mật khẩu" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -930,7 +930,7 @@ const Settings = () => {
             {isAdmin && (
               <div className="p-4 md:p-6 border-b border-slate-50 bg-slate-50/30 flex flex-col sm:flex-row gap-4">
                 <input 
-                  className="flex-1 px-5 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-sm" 
+                  className="flex-1 px-5 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-50 font-bold text-sm" 
                   placeholder={activeTab === 'prices' ? "VD: Giá sỉ, Giá dự án..." : "VD: Điện gia dụng, Thời trang..."} 
                   value={newValue} 
                   onChange={(e) => setNewValue(e.target.value)} 

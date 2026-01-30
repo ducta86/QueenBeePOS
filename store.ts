@@ -17,7 +17,6 @@ interface AppState {
   isLoading: boolean;
   error: string | null;
   
-  // Trạng thái đồng bộ toàn cục
   unsyncedCount: {
     products: number; orders: number; customers: number; users: number; purchases: number;
     priceTypes: number; productGroups: number; productPrices: number;
@@ -98,6 +97,28 @@ export const useStore = create<AppState>((set, get) => ({
 
   fetchInitialData: async () => {
     set({ isLoading: true });
+
+    // --- MIGRATION: Sửa các ID không hợp lệ (như 'pt-retail') ---
+    const legacyPriceTypes = await db.priceTypes.toArray();
+    for (const pt of legacyPriceTypes) {
+      if (pt.id.length !== 15) {
+        const newId = generateId();
+        // Cập nhật tất cả productPrices đang tham chiếu tới ID cũ
+        await db.productPrices.where('priceTypeId').equals(pt.id).modify({ priceTypeId: newId, synced: 0 });
+        // Cập nhật tất cả customers đang tham chiếu tới ID cũ
+        await db.customers.where('typeId').equals(pt.id).modify({ typeId: newId, synced: 0 });
+        // Cập nhật giá vốn trong storeConfig nếu cần
+        const currentStore = JSON.parse(localStorage.getItem('store_config') || '{}');
+        if (currentStore.costPriceTypeId === pt.id) {
+          currentStore.costPriceTypeId = newId;
+          localStorage.setItem('store_config', JSON.stringify(currentStore));
+        }
+        // Xóa cũ, thêm mới với ID 15 ký tự
+        await db.priceTypes.delete(pt.id);
+        await db.priceTypes.add({ ...pt, id: newId, synced: 0, updatedAt: Date.now() });
+      }
+    }
+
     const users = await db.users.where('deleted').equals(0).toArray();
     const products = await db.products.where('deleted').equals(0).toArray();
     const customers = await db.customers.where('deleted').equals(0).toArray();

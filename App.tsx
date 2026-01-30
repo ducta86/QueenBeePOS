@@ -67,7 +67,7 @@ const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount,
     { label: 'Sản phẩm', count: Number(unsyncedCount.products || 0), icon: Package, path: '/products' },
     { label: 'Đơn hàng', count: Number(unsyncedCount.orders || 0), icon: FileText, path: '/orders' },
     { label: 'Khách hàng', count: Number(unsyncedCount.customers || 0), icon: Users, path: '/customers' },
-    { label: 'Phiếu nhập', count: Number(unsyncedCount.purchayses || 0), icon: PackagePlus, path: '/purchase' },
+    { label: 'Phiếu nhập', count: Number(unsyncedCount.purchases || 0), icon: PackagePlus, path: '/purchase' },
     { label: 'Bảng giá', count: Number(unsyncedCount.productPrices || 0), icon: DollarSign, path: '/settings' },
     { label: 'Nhóm hàng', count: Number(unsyncedCount.productGroups || 0), icon: Layers, path: '/settings' },
     { label: 'Loại giá', count: Number(unsyncedCount.priceTypes || 0), icon: Tags, path: '/settings' },
@@ -142,21 +142,21 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
   }, [currentUser]);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-3 lg:px-8 sticky top-0 z-30 shrink-0">
+    <header className="h-16 bg-white/95 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 lg:px-8 sticky top-0 z-40 shrink-0">
       <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
         <button onClick={onOpenSidebar} className="p-1.5 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden shrink-0">
           <Menu size={24} />
         </button>
         
-        <div className={`flex items-center px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border transition-all shadow-sm flex-shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-          <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mr-2 sm:mr-2.5 shadow-inner ${isOnline && isServerOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
+        <div className={`flex items-center px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full border transition-all shadow-sm flex-shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+          <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mr-1.5 sm:mr-2.5 shadow-inner ${isOnline && isServerOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
           <span className={`text-[10px] sm:text-[12px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-700' : 'text-rose-600'}`}>
             {isOnline && isServerOnline ? 'System Online' : 'System Offline'}
           </span>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+      <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
         <div className="relative">
           <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors relative active:scale-90">
             <Bell size={20} className={isSyncing ? 'animate-bounce' : ''} />
@@ -230,16 +230,16 @@ const AppContent = () => {
   const renderBrandName = () => {
     const fullName = storeName || 'QueenBee POS';
     const words = fullName.trim().split(/\s+/);
-    if (words.length <= 1) return <span className="text-xl font-bold tracking-tight text-slate-800 truncate block">{fullName}</span>;
+    if (words.length <= 1) return <span className="text-base sm:text-xl font-bold tracking-tight text-slate-800 truncate block">{fullName}</span>;
     const lastWord = words.pop();
-    return <span className="text-xl font-bold tracking-tight text-slate-800 truncate block">{words.join(' ')} <span className="text-indigo-600">{lastWord}</span></span>;
+    return <span className="text-base sm:text-xl font-bold tracking-tight text-slate-800 truncate block">{words.join(' ')} <span className="text-indigo-600">{lastWord}</span></span>;
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 overflow-hidden">
-      {isSidebarOpen && <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-100 transform transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-[70] w-64 bg-white border-r border-slate-100 transform transition-transform duration-300 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
         <div className="h-full flex flex-col p-4">
           <div className="flex items-center space-x-2 px-4 py-6 shrink-0">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0"><CreditCard size={24} /></div>
@@ -258,9 +258,9 @@ const AppContent = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8 scrollbar-hide">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8 scrollbar-hide">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/products" element={<ProductManager />} />

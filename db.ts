@@ -3,7 +3,7 @@ import { Dexie, type Table } from 'dexie';
 import { Product, ProductPrice, PriceType, Customer, CustomerType, Order, Purchase, ProductGroup, User } from './types';
 import { argon2id } from 'hash-wasm';
 
-// Hàm tạo ID tương thích hoàn toàn với PocketBase (15 ký tự, a-z0-9)
+// Hàm tạo ID tương thích hoàn toàn với PocketBase (BẮT BUỘC 15 ký tự, a-z0-9)
 export const generateId = (): string => {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
@@ -52,7 +52,8 @@ export class POSDatabase extends Dexie {
 
   constructor() {
     super('POSDatabase');
-    (this as Dexie).version(10).stores({ 
+    // Version 11: Đảm bảo cấu trúc index cho đồng bộ
+    (this as Dexie).version(11).stores({ 
       products: 'id, name, code, barcode, groupId, lineId, synced, updatedAt, deleted',
       productPrices: 'id, productId, priceTypeId, synced, updatedAt, deleted',
       priceTypes: 'id, name, synced, updatedAt, deleted',
@@ -74,7 +75,7 @@ export const seedDatabase = async () => {
     const salt = generateSalt();
     const defaultPwHash = await hashPassword('user@123', salt);
     await db.users.put({
-      id: 'admin0000000001',
+      id: 'admin0000000001', // 15 ký tự
       username: 'admin',
       passwordHash: defaultPwHash,
       passwordSalt: salt,
@@ -86,12 +87,23 @@ export const seedDatabase = async () => {
     });
   }
   
-  // Xóa trắng các dữ liệu mẫu khác để người dùng tự thiết lập từ đầu
+  const ptCount = await db.priceTypes.count();
+  if (ptCount === 0) {
+    // Tạo sẵn loại giá mặc định với ID đúng 15 ký tự thay vì 'pt-retail'
+    await db.priceTypes.add({
+      id: 'pricetype000001',
+      name: 'Giá bán lẻ',
+      updatedAt: Date.now(),
+      synced: 0,
+      deleted: 0
+    });
+  }
+
   const ctCount = await db.customerTypes.count();
   if (ctCount === 0) {
     await db.customerTypes.bulkPut([
-      { id: 'type00000000001', name: 'Khách lẻ', defaultPriceTypeId: '' },
-      { id: 'type00000000002', name: 'Khách VIP', defaultPriceTypeId: '' }
+      { id: 'custype00000001', name: 'Khách lẻ', defaultPriceTypeId: 'pricetype000001' },
+      { id: 'custype00000002', name: 'Khách VIP', defaultPriceTypeId: 'pricetype000001' }
     ]);
   }
 };

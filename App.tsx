@@ -142,26 +142,26 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
   }, [currentUser]);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-3 lg:px-10 sticky top-0 z-30 shrink-0 gap-2">
-      <div className="flex items-center space-x-1 sm:space-x-4 min-w-0">
-        <button onClick={onOpenSidebar} className="p-1.5 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden shrink-0">
-          <Menu size={22} />
+    <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-3 lg:px-10 sticky top-0 z-30 shrink-0 gap-2 overflow-hidden">
+      <div className="flex items-center space-x-1 sm:space-x-4 min-w-0 flex-shrink">
+        <button onClick={onOpenSidebar} className="p-1.5 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden flex-shrink-0">
+          <Menu size={20} />
         </button>
         
-        <div className={`flex items-center px-1.5 sm:px-4 py-1 sm:py-2.5 rounded-full border transition-colors shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-200'}`}>
-          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-1.5 sm:mr-2.5 ${isOnline && isServerOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
-          <span className={`text-[8px] sm:text-[11px] font-black uppercase tracking-wider whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-700' : 'text-rose-600'}`}>
+        <div className={`flex items-center px-1.5 sm:px-4 py-1 sm:py-2.5 rounded-full border transition-colors flex-shrink min-w-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-1.5 sm:mr-2.5 flex-shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
+          <span className={`text-[7px] sm:text-[11px] font-black uppercase tracking-wider whitespace-nowrap truncate ${isOnline && isServerOnline ? 'text-emerald-700' : 'text-rose-600'}`}>
             {isOnline && isServerOnline ? 'System Online' : 'System Offline'}
           </span>
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
+      <div className="flex items-center space-x-1.5 sm:space-x-4 flex-shrink-0">
         <div className="relative">
-          <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors relative">
-            <Bell size={20} className={isSyncing ? 'animate-bounce' : ''} />
+          <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className="p-1.5 sm:p-2 text-slate-400 hover:text-indigo-600 transition-colors relative">
+            <Bell size={18} className={isSyncing ? 'animate-bounce' : ''} />
             {totalUnsynced > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+              <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[7px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm">
                 {totalUnsynced > 9 ? '9+' : totalUnsynced}
               </span>
             )}
@@ -172,17 +172,17 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
         <button 
           onClick={syncData} 
           disabled={isSyncing || !isOnline} 
-          className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center bg-[#FFFBF0] text-[#C19A6B] rounded-xl hover:bg-[#FDF3E1] transition-all active:scale-95 disabled:opacity-50"
+          className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-[#FFFBF0] text-[#C19A6B] rounded-xl hover:bg-[#FDF3E1] transition-all active:scale-95 disabled:opacity-50"
         >
-          <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+          <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
         </button>
 
         <div className="relative" ref={userMenuRef}>
           <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center space-x-1 group">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0F172A] text-white flex items-center justify-center font-bold text-xs shadow-lg group-hover:bg-black transition-colors">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0F172A] text-white flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-lg group-hover:bg-black transition-colors">
               {getInitials()}
             </div>
-            <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 hidden sm:block ${isUserMenuOpen ? 'rotate-180' : ''}`} />
           </button>
           {isUserMenuOpen && (
             <div className="absolute right-0 mt-3 w-56 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right">

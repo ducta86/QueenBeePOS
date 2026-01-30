@@ -491,7 +491,7 @@ const POS = () => {
                             </div>
                             <div className="text-left">
                                 <div className="text-sm font-bold text-slate-800">{p.name}</div>
-                                <div className={`text-[10px] text-slate-400 font-mono uppercase tracking-tighter">Mã: {p.code}</div>
+                                <div className={`text-[10px] text-slate-400 font-mono uppercase tracking-tighter`}>Mã: {p.code}</div>
                             </div>
                           </div>
                           <div className="text-right">
@@ -841,7 +841,7 @@ const POS = () => {
                       </div>
                    </div>
                    <div className="mt-12 text-center border-t border-dashed border-slate-300 pt-6 space-y-2">
-                      <p className="font-black italic uppercase text-[0.9em] tracking-widest leading-none">CẢM OXN QUÝ KHÁCH HÀNG!</p>
+                      <p className="font-black italic uppercase text-[0.9em] tracking-widest leading-none">CẢM ƠN QUÝ KHÁCH HÀNG!</p>
                    </div>
                 </div>
              </div>

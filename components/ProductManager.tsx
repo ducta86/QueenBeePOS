@@ -27,7 +27,8 @@ import {
   ChevronRight,
   Lock,
   CloudOff,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  GitBranch
 } from 'lucide-react';
 import { Product, ProductPrice } from '../types';
 import * as XLSX from 'xlsx';
@@ -93,7 +94,7 @@ const ProductManager = () => {
         image: editingProduct.image || '',
         groupId: editingProduct.groupId,
         unit: editingProduct.unit,
-        lineId: editingProduct.lineId,
+        lineId: editingProduct.lineId || '',
         stock: editingProduct.stock
       });
       
@@ -630,6 +631,16 @@ const ProductManager = () => {
                           <option key={g.id} value={g.id}>{g.name}</option>
                         ))}
                       </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-600">Dòng sản phẩm (Line ID)</label>
+                      <div className="relative">
+                        <GitBranch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <input className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 outline-none font-bold text-sm" value={formData.lineId} onChange={e => setFormData({...formData, lineId: e.target.value})} placeholder="VD: Premium, Seasonal..." />
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium mt-1 leading-tight italic">
+                        * Thông tin bổ sung dùng cho phân tích báo cáo nâng cao.
+                      </p>
                     </div>
                     <div className="space-y-2 relative">
                       <div className="flex items-center justify-between">

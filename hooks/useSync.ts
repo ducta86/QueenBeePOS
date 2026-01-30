@@ -83,13 +83,13 @@ export const useSync = () => {
           continue;
         }
 
-        // CHUẨN HÓA PAYLOAD: Loại bỏ các field rỗng cho các trường liên kết (Relation)
-        // Trong PocketBase, nếu field là Relation mà gửi "" sẽ bị lỗi 400.
+        // CHUẨN HÓA PAYLOAD
         const cleanPayload: any = {};
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
-          // Nếu là các trường ID liên kết mà bị rỗng thì không gửi lên
-          if ((key.toLowerCase().endsWith('id') || key === 'lineId' || key === 'groupId') && value === "") {
+          // CHỈ loại bỏ các trường ID hệ thống nội bộ thực sự rỗng và KHÔNG phải là trường quan trọng của schema
+          // Trường lineId và groupId nếu bắt buộc trong PocketBase thì KHÔNG được lọc bỏ
+          if ((key === 'priceTypeId' || key === 'productId' || key === 'customerId') && value === "") {
              return; 
           }
           cleanPayload[key] = value;
@@ -115,10 +115,9 @@ export const useSync = () => {
           await table.update(localId, { synced: 1 });
         } else {
           const errData = await response.json();
-          // CẢI TIẾN: Log lỗi cực kỳ chi tiết để bạn nhìn thấy "data" bên trong
           console.group(`Sync Error 400: ${collectionName}`);
           console.error("Server Message:", errData.message);
-          console.error("Validation Details (Bấm vào đây để xem lỗi trường nào):", errData.data);
+          console.error("Validation Details:", errData.data);
           console.log("Payload sent:", body);
           console.groupEnd();
         }
@@ -165,7 +164,6 @@ export const useSync = () => {
 
     setIsSyncing(true);
     try {
-      // ĐỒNG BỘ TUẦN TỰ
       await syncCollection('priceTypes', 'price_types');
       await syncCollection('productGroups', 'product_groups');
       await syncCollection('users', 'profiles');

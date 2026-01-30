@@ -98,24 +98,32 @@ export const useStore = create<AppState>((set, get) => ({
   fetchInitialData: async () => {
     set({ isLoading: true });
 
-    // --- MIGRATION: Sửa các ID không hợp lệ (như 'pt-retail') ---
-    const legacyPriceTypes = await db.priceTypes.toArray();
-    for (const pt of legacyPriceTypes) {
-      if (pt.id.length !== 15) {
-        const newId = generateId();
-        // Cập nhật tất cả productPrices đang tham chiếu tới ID cũ
-        await db.productPrices.where('priceTypeId').equals(pt.id).modify({ priceTypeId: newId, synced: 0 });
-        // Cập nhật tất cả customers đang tham chiếu tới ID cũ
-        await db.customers.where('typeId').equals(pt.id).modify({ typeId: newId, synced: 0 });
-        // Cập nhật giá vốn trong storeConfig nếu cần
-        const currentStore = JSON.parse(localStorage.getItem('store_config') || '{}');
-        if (currentStore.costPriceTypeId === pt.id) {
-          currentStore.costPriceTypeId = newId;
-          localStorage.setItem('store_config', JSON.stringify(currentStore));
+    const tablesToMigrate = [
+      { table: db.priceTypes, refFields: [{ table: db.productPrices, field: 'priceTypeId' }, { table: db.customers, field: 'typeId' }] },
+      { table: db.productGroups, refFields: [{ table: db.products, field: 'groupId' }] },
+      { table: db.products, refFields: [{ table: db.productPrices, field: 'productId' }] },
+      { table: db.customers, refFields: [{ table: db.orders, field: 'customerId' }] }
+    ];
+
+    for (const config of tablesToMigrate) {
+      const items = await config.table.toArray();
+      for (const item of items) {
+        if (item.id.length !== 15) {
+          const oldId = item.id;
+          const newId = generateId();
+          for (const ref of config.refFields) {
+            await (ref.table as any).where(ref.field).equals(oldId).modify({ [ref.field]: newId, synced: 0, updatedAt: Date.now() });
+          }
+          if (config.table === db.priceTypes) {
+             const currentStore = JSON.parse(localStorage.getItem('store_config') || '{}');
+             if (currentStore.costPriceTypeId === oldId) {
+               currentStore.costPriceTypeId = newId;
+               localStorage.setItem('store_config', JSON.stringify(currentStore));
+             }
+          }
+          await config.table.delete(oldId);
+          await config.table.add({ ...item, id: newId, synced: 0, updatedAt: Date.now() });
         }
-        // Xóa cũ, thêm mới với ID 15 ký tự
-        await db.priceTypes.delete(pt.id);
-        await db.priceTypes.add({ ...pt, id: newId, synced: 0, updatedAt: Date.now() });
       }
     }
 
@@ -270,22 +278,39 @@ export const useStore = create<AppState>((set, get) => ({
 
   deletePriceType: async (id) => {
     const config = get().storeConfig;
+    
+    // 1. Kiểm tra Giá vốn hệ thống (Thủ phạm chính)
     if (config.costPriceTypeId === id) {
-      set({ error: "Không thể xóa: Loại giá này đang được gán làm GIÁ VỐN hệ thống." });
-      setTimeout(() => set({ error: null }), 3000);
-      throw new Error("Deletion blocked");
+      set({ error: "LỖI: Loại giá này đang được chọn làm 'GIÁ NHẬP KHO' trong phần Cài đặt > Gian hàng. Vui lòng đổi Giá vốn sang loại khác trước khi xóa." });
+      setTimeout(() => set({ error: null }), 5000);
+      throw new Error("Deletion blocked by system config");
     }
 
-    const countProduct = await db.productPrices.where('priceTypeId').equals(id).filter(p => p.price > 0 && p.deleted === 0).count();
-    const countCustomer = await db.customers.where('typeId').equals(id).filter(c => c.deleted === 0).count();
+    // 2. Lấy danh sách sản phẩm và khách hàng ĐANG HOẠT ĐỘNG
+    // Chỉ chặn nếu có bản ghi thực sự chưa bị xóa (deleted === 0)
+    const activeCustomers = await db.customers.where('typeId').equals(id).filter(c => c.deleted === 0).toArray();
+    
+    // Kiểm tra ProductPrices có giá trị > 0 của những Sản phẩm ĐANG HOẠT ĐỘNG
+    const activeProductPrices = await db.productPrices.where('priceTypeId').equals(id).filter(pp => pp.price > 0 && pp.deleted === 0).toArray();
+    
+    const blockers = [];
+    if (activeCustomers.length > 0) blockers.push(`${activeCustomers.length} khách hàng`);
+    if (activeProductPrices.length > 0) blockers.push(`${activeProductPrices.length} sản phẩm có thiết lập giá`);
 
-    if (countProduct > 0 || countCustomer > 0) {
-      set({ error: "Không thể xóa: Loại giá này đang có Sản phẩm hoặc Khách hàng đang sử dụng." });
-      setTimeout(() => set({ error: null }), 3000);
-      throw new Error("Deletion blocked");
+    if (blockers.length > 0) {
+      set({ error: `KHÔNG THỂ XÓA: Loại giá này đang được sử dụng bởi ${blockers.join(' và ')}. Vui lòng xóa hoặc đổi loại giá cho các mục này trước.` });
+      setTimeout(() => set({ error: null }), 5000);
+      throw new Error("Deletion blocked by active references");
     }
 
-    await db.priceTypes.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
+    // 3. Nếu mọi thứ đã dọn dẹp xong, thực hiện xóa (Soft delete)
+    await (db as Dexie).transaction('rw', [db.priceTypes, db.productPrices], async () => {
+      // Đánh dấu xóa loại giá
+      await db.priceTypes.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
+      // Đánh dấu xóa toàn bộ bảng giá liên quan để dọn dẹp DB
+      await db.productPrices.where('priceTypeId').equals(id).modify({ deleted: 1, updatedAt: Date.now(), synced: 0 });
+    });
+
     const priceTypes = await db.priceTypes.where('deleted').equals(0).toArray();
     set({ priceTypes });
   },

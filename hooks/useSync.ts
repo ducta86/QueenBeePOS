@@ -59,6 +59,34 @@ export const useSync = () => {
     }
   }, [setUnsyncedCount]);
 
+  // Hàm kiểm tra xem các quan hệ của bản ghi đã được đồng bộ lên server chưa
+  const checkDependenciesSynced = async (tableName: string, item: any) => {
+    const deps: Record<string, { table: any, field: string }[]> = {
+      'products': [{ table: db.productGroups, field: 'groupId' }],
+      'customers': [{ table: db.priceTypes, field: 'typeId' }],
+      'productPrices': [
+        { table: db.products, field: 'productId' },
+        { table: db.priceTypes, field: 'priceTypeId' }
+      ],
+      'orders': [{ table: db.customers, field: 'customerId' }]
+    };
+
+    const config = deps[tableName];
+    if (!config) return true;
+
+    for (const d of config) {
+      const depId = item[d.field];
+      if (!depId || depId === 'walk-in') continue; // Bỏ qua khách lẻ hoặc giá trị trống
+
+      const parentRecord = await d.table.get(depId);
+      // Nếu không tìm thấy hoặc chưa đồng bộ (synced === 0)
+      if (!parentRecord || parentRecord.synced === 0) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const syncCollection = async (tableName: string, collectionName: string) => {
     if (!backendUrl) return;
     const table = (db as any)[tableName];
@@ -76,23 +104,32 @@ export const useSync = () => {
           continue;
         }
 
-        // --- KIỂM TRA ĐỊNH DẠNG ID RELATION TRƯỚC KHI GỬI ---
+        // --- KIỂM TRA ĐỊNH DẠNG ID VÀ PHỤ THUỘC ---
         const cleanPayload: any = {};
         let hasInvalidRelation = false;
 
+        // 1. Kiểm tra độ dài ID relation (PocketBase yêu cầu 15 ký tự)
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
-          // PocketBase Relation IDs phải đúng 15 ký tự
-          if (['priceTypeId', 'productId', 'customerId', 'groupId'].includes(key)) {
-             if (value && String(value).length !== 15) {
-                console.warn(`Sync Warning: Invalid Relation ID length for ${key} in ${collectionName}. Skipping record.`, value);
+          if (['priceTypeId', 'productId', 'customerId', 'groupId', 'typeId'].includes(key)) {
+             if (value && String(value).length !== 15 && value !== 'walk-in') {
                 hasInvalidRelation = true;
              }
           }
           if (value !== "") cleanPayload[key] = value;
         });
 
-        if (hasInvalidRelation) continue;
+        if (hasInvalidRelation) {
+           console.warn(`Sync Warning: Record in ${tableName} has legacy ID. Waiting for migration.`, localId);
+           continue;
+        }
+
+        // 2. Kiểm tra xem cha đã lên server chưa (Tránh lỗi 400 productId validation)
+        const isReady = await checkDependenciesSynced(tableName, item);
+        if (!isReady) {
+          console.debug(`Sync: Skipping ${collectionName}/${localId} because parent is not synced yet.`);
+          continue; 
+        }
 
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
@@ -114,9 +151,10 @@ export const useSync = () => {
           await table.update(localId, { synced: 1 });
         } else {
           const errData = await response.json();
+          // Nếu server báo lỗi relation (400), đánh dấu record này cần xử lý lại sau
           console.group(`Sync Error 400: ${collectionName}`);
           console.error("Message:", errData.message);
-          console.error("Data:", errData.data);
+          console.error("Validation:", errData.data);
           console.log("Payload:", body);
           console.groupEnd();
         }
@@ -163,12 +201,17 @@ export const useSync = () => {
 
     setIsSyncing(true);
     try {
-      // Quan trọng: Phải đồng bộ các bảng "Cha" trước để tránh lỗi Relation trên Server
+      // THỰC HIỆN ĐỒNG BỘ THEO THỨ TỰ CÂY PHỤ THUỘC (Top-Down)
+      // Level 0: Không phụ thuộc
       await syncCollection('priceTypes', 'price_types');
       await syncCollection('productGroups', 'product_groups');
       await syncCollection('users', 'profiles');
+      
+      // Level 1: Phụ thuộc vào Level 0
       await syncCollection('products', 'products');
       await syncCollection('customers', 'customers');
+      
+      // Level 2: Phụ thuộc vào Level 1
       await syncCollection('productPrices', 'product_prices');
       await syncCollection('orders', 'orders');
       await syncCollection('purchases', 'purchases');
@@ -177,7 +220,8 @@ export const useSync = () => {
       setLastSync(now);
       localStorage.setItem('last_sync_ts', now.toString());
       await checkUnsynced();
-      await fetchInitialData();
+      // Không gọi fetchInitialData ở đây để tránh loop re-render nặng, 
+      // component nào cần sẽ tự phản ứng với DB change (nếu dùng Dexie hook) hoặc manual refresh
     } catch (error) {
       console.error('Critical Sync Failure:', error);
     } finally {

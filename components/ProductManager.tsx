@@ -36,7 +36,7 @@ import { Product, ProductPrice } from '../types';
 import * as XLSX from 'xlsx';
 import { Html5Qrcode } from "html5-qrcode";
 
-// Utility function to play a beep sound using Web Audio API
+// Utility beep sound using Web Audio API
 const playBeep = () => {
   try {
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -47,7 +47,7 @@ const playBeep = () => {
     gainNode.connect(audioCtx.destination);
 
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(850, audioCtx.currentTime);
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
 
     oscillator.start();
@@ -84,9 +84,26 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-rea
   const [error, setScannerError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
+  const stopAndClose = async () => {
+    if (scannerRef.current) {
+      try {
+        const state = scannerRef.current.getState();
+        if (state === 2 || state === 3) {
+           await scannerRef.current.stop();
+        }
+      } catch (e) {
+        console.warn("Stop failed:", e);
+      } finally {
+        scannerRef.current = null;
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
-
     if (isOpen) {
       setIsInitializing(true);
       setScannerError(null);
@@ -99,16 +116,16 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-rea
           await html5QrCode.start(
             { facingMode: "environment" },
             {
-              fps: 10,
+              fps: 15,
               qrbox: { width: 250, height: 150 },
             },
             async (decodedText) => {
               if (!isMounted) return;
-              playBeep(); // Phát tiếng beep
-              onScan(decodedText);
+              
+              playBeep();
               if (navigator.vibrate) navigator.vibrate(100);
               
-              // Đóng camera an toàn
+              onScan(decodedText);
               await stopAndClose();
             },
             () => {} 
@@ -123,38 +140,22 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan, scannerId = "product-rea
         }
       };
 
-      // Đợi DOM element render
-      const timer = setTimeout(startScanner, 300);
+      const timer = setTimeout(startScanner, 100);
       return () => {
         isMounted = false;
         clearTimeout(timer);
-        stopAndClose();
+        if (scannerRef.current) {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) scannerRef.current.stop();
+        }
       };
     }
   }, [isOpen]);
 
-  const stopAndClose = async () => {
-    if (scannerRef.current) {
-      try {
-        const state = scannerRef.current.getState();
-        if (state === 2 || state === 3) { // 2: SCANNING, 3: PAUSED
-           await scannerRef.current.stop();
-        }
-      } catch (e) {
-        console.warn("Stop failed:", e);
-      } finally {
-        scannerRef.current = null;
-        onClose();
-      }
-    } else {
-      onClose();
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
       <div className="bg-white w-full max-w-lg rounded-[40px] shadow-3xl overflow-hidden relative">
         <div className="p-6 border-b border-slate-50 flex items-center justify-between">
            <div className="flex items-center space-x-3">
@@ -506,7 +507,7 @@ const ProductManager = () => {
           <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-3xl shadow-2xl flex items-center space-x-3 text-emerald-700">
             <CheckCircle2 size={24} className="shrink-0" />
             <p className="text-sm font-bold">{successMsg}</p>
-            <button onClick={() => setSuccessMsg(null)} className="ml-auto p-1 hover:bg-emerald-100 rounded-full">
+            <button onClick={setSuccessMsg.bind(null, null)} className="ml-auto p-1 hover:bg-emerald-100 rounded-full">
               <X size={16} />
             </button>
           </div>

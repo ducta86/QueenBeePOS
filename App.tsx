@@ -142,26 +142,26 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
   }, [currentUser]);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-3 lg:px-10 sticky top-0 z-30 shrink-0 gap-2 overflow-hidden">
-      <div className="flex items-center space-x-1 sm:space-x-4 min-w-0 flex-shrink">
-        <button onClick={onOpenSidebar} className="p-1.5 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden flex-shrink-0">
-          <Menu size={20} />
+    <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 lg:px-10 sticky top-0 z-30 shrink-0">
+      <div className="flex items-center space-x-4">
+        <button onClick={onOpenSidebar} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
+          <Menu size={28} />
         </button>
         
-        <div className={`flex items-center px-1.5 sm:px-4 py-1 sm:py-2.5 rounded-full border transition-colors flex-shrink min-w-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-1.5 sm:mr-2.5 flex-shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
-          <span className={`text-[7px] sm:text-[11px] font-black uppercase tracking-wider whitespace-nowrap truncate ${isOnline && isServerOnline ? 'text-emerald-700' : 'text-rose-600'}`}>
+        <div className={`flex items-center px-4 py-2.5 rounded-full border transition-colors ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100 shadow-sm' : 'bg-rose-50 border-rose-100'}`}>
+          <div className={`w-2.5 h-2.5 rounded-full mr-2.5 ${isOnline && isServerOnline ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}></div>
+          <span className={`text-[12px] sm:text-[14px] font-black uppercase tracking-wider ${isOnline && isServerOnline ? 'text-emerald-700' : 'text-rose-600'}`}>
             {isOnline && isServerOnline ? 'System Online' : 'System Offline'}
           </span>
         </div>
       </div>
 
-      <div className="flex items-center space-x-1.5 sm:space-x-4 flex-shrink-0">
+      <div className="flex items-center space-x-4">
         <div className="relative">
-          <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className="p-1.5 sm:p-2 text-slate-400 hover:text-indigo-600 transition-colors relative">
-            <Bell size={18} className={isSyncing ? 'animate-bounce' : ''} />
+          <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className="p-2.5 text-slate-400 hover:text-indigo-600 transition-colors relative">
+            <Bell size={24} className={isSyncing ? 'animate-bounce' : ''} />
             {totalUnsynced > 0 && (
-              <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[7px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+              <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white shadow-sm">
                 {totalUnsynced > 9 ? '9+' : totalUnsynced}
               </span>
             )}
@@ -172,32 +172,35 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
         <button 
           onClick={syncData} 
           disabled={isSyncing || !isOnline} 
-          className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-[#FFFBF0] text-[#C19A6B] rounded-xl hover:bg-[#FDF3E1] transition-all active:scale-95 disabled:opacity-50"
+          className="w-12 h-12 flex items-center justify-center bg-[#FFFBF0] text-[#C19A6B] rounded-2xl hover:bg-[#FDF3E1] transition-all active:scale-95 disabled:opacity-50"
         >
-          <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+          <RefreshCw size={22} className={isSyncing ? 'animate-spin' : ''} />
         </button>
 
         <div className="relative" ref={userMenuRef}>
-          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center space-x-1 group">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0F172A] text-white flex items-center justify-center font-bold text-[10px] sm:text-xs shadow-lg group-hover:bg-black transition-colors">
+          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center space-x-2 p-1.5 rounded-2xl hover:bg-slate-50 transition-colors group">
+            <div className="w-11 h-11 rounded-[16px] bg-[#0F172A] text-white flex items-center justify-center font-bold text-sm shadow-lg group-hover:bg-black transition-colors shrink-0">
               {getInitials()}
             </div>
-            <ChevronDown size={12} className={`text-slate-400 transition-transform duration-200 hidden sm:block ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 hidden sm:block ${isUserMenuOpen ? 'rotate-180' : ''}`} />
           </button>
           {isUserMenuOpen && (
-            <div className="absolute right-0 mt-3 w-56 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right">
-              <div className="px-5 py-4 border-b border-slate-50 mb-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tài khoản</p>
-                <p className="text-sm font-bold text-slate-800 truncate leading-tight">{currentUser?.fullName}</p>
+            <div className="absolute right-0 mt-3 w-64 bg-white rounded-[32px] shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-50 mb-1">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Tài khoản</p>
+                <p className="text-base font-black text-slate-800 truncate leading-tight">{currentUser?.fullName}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{currentUser?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}</p>
               </div>
-              <Link to="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center space-x-3 px-4 py-3 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group">
-                <UserIcon size={18} className="text-slate-400 group-hover:text-indigo-600" />
-                <span className="font-semibold text-sm">Hồ sơ của tôi</span>
-              </Link>
-              <button onClick={logout} className="w-full flex items-center space-x-3 px-4 py-3 text-rose-600 hover:bg-rose-50 rounded-2xl transition-all group">
-                <LogOut size={18} className="text-rose-400 group-hover:text-rose-600" />
-                <span className="font-semibold text-sm">Đăng xuất</span>
-              </button>
+              <div className="p-1 space-y-1">
+                <Link to="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center space-x-3 px-5 py-3.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all group">
+                  <UserIcon size={18} className="text-slate-400 group-hover:text-indigo-600" />
+                  <span className="font-bold text-sm">Hồ sơ của tôi</span>
+                </Link>
+                <button onClick={logout} className="w-full flex items-center space-x-3 px-5 py-3.5 text-rose-600 hover:bg-rose-50 rounded-2xl transition-all group">
+                  <LogOut size={18} className="text-rose-400 group-hover:text-rose-600" />
+                  <span className="font-bold text-sm">Đăng xuất hệ thống</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

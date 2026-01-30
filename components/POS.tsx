@@ -3,7 +3,7 @@ import { jsPDF } from 'jspdf';
 import { 
   Barcode, CheckCircle, ChevronDown, DollarSign, FileDown, FileImage, 
   Loader2, Minus, OctagonAlert, Package, PackageSearch, Plus, Printer, 
-  QrCode, RefreshCw, ShoppingBag, ShoppingCart, Tag, Trash2, User, UserX, Wallet, X,
+  QrCode, RefreshCw, ShoppingCart, Tag, Trash2, User, UserX, Wallet, X,
   Search, Camera, FlipHorizontal
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -26,7 +26,7 @@ const playBeep = () => {
     gainNode.connect(audioCtx.destination);
 
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(850, audioCtx.currentTime);
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
 
     oscillator.start();
@@ -40,55 +40,6 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onC
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [error, setScannerError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    if (isOpen) {
-      setIsInitializing(true);
-      setScannerError(null);
-      
-      const startScanner = async () => {
-        try {
-          const html5QrCode = new Html5Qrcode("pos-reader");
-          scannerRef.current = html5QrCode;
-
-          await html5QrCode.start(
-            { facingMode: "environment" },
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 150 },
-            },
-            async (decodedText) => {
-              if (!isMounted) return;
-              
-              playBeep(); // Phát tiếng beep khi quét thành công
-              onScan(decodedText);
-              if (navigator.vibrate) navigator.vibrate(100);
-              
-              // Dừng camera an toàn trước khi đóng modal
-              await stopAndClose();
-            },
-            () => {} 
-          );
-          if (isMounted) setIsInitializing(false);
-        } catch (err) {
-          console.error("Camera error:", err);
-          if (isMounted) {
-            setScannerError("Không thể truy cập Camera. Vui lòng kiểm tra quyền trình duyệt.");
-            setIsInitializing(false);
-          }
-        }
-      };
-
-      const timer = setTimeout(startScanner, 300);
-      return () => {
-        isMounted = false;
-        clearTimeout(timer);
-        stopAndClose();
-      };
-    }
-  }, [isOpen]);
 
   const stopAndClose = async () => {
     if (scannerRef.current) {
@@ -108,10 +59,62 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onC
     }
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    if (isOpen) {
+      setIsInitializing(true);
+      setScannerError(null);
+      
+      const startScanner = async () => {
+        try {
+          const html5QrCode = new Html5Qrcode("pos-reader");
+          scannerRef.current = html5QrCode;
+
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 15,
+              qrbox: { width: 250, height: 150 },
+            },
+            async (decodedText) => {
+              if (!isMounted) return;
+              
+              playBeep(); 
+              if (navigator.vibrate) navigator.vibrate(100);
+              
+              // Call onScan and immediately stop camera/close modal
+              onScan(decodedText);
+              await stopAndClose();
+            },
+            () => {} 
+          );
+          if (isMounted) setIsInitializing(false);
+        } catch (err) {
+          console.error("Camera error:", err);
+          if (isMounted) {
+            setScannerError("Không thể truy cập Camera. Vui lòng kiểm tra quyền trình duyệt.");
+            setIsInitializing(false);
+          }
+        }
+      };
+
+      const timer = setTimeout(startScanner, 100);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+        // Explicitly stop if unmounting while scanning
+        if (scannerRef.current) {
+          const state = scannerRef.current.getState();
+          if (state === 2 || state === 3) scannerRef.current.stop();
+        }
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
       <div className="bg-white w-full max-w-lg rounded-[40px] shadow-3xl overflow-hidden relative">
         <div className="p-6 border-b border-slate-50 flex items-center justify-between">
            <div className="flex items-center space-x-3">
@@ -491,7 +494,7 @@ const POS = () => {
                             </div>
                             <div className="text-left">
                                 <div className="text-sm font-bold text-slate-800">{p.name}</div>
-                                <div className={`text-[10px] text-slate-400 font-mono uppercase tracking-tighter`}>Mã: {p.code}</div>
+                                <div className="text-[10px] text-slate-400 font-mono uppercase tracking-tighter">Mã: {p.code}</div>
                             </div>
                           </div>
                           <div className="text-right">

@@ -7,15 +7,15 @@ import {
   LogOut, Bell, Menu, CreditCard, FileText, PackagePlus, BarChart3, ChevronDown,
   User as UserIcon, Loader2, CloudDownload, Users2, DollarSign, Layers, Tags, CheckCircle, ChevronRight, Check
 } from 'lucide-react';
-import Dashboard from './components/Dashboard';
-import ProductManager from './components/ProductManager';
-import CustomerManager from './components/CustomerManager';
-import POS from './components/POS';
-import Settings from './components/Settings';
-import OrderHistory from './components/OrderHistory';
-import PurchaseManager from './components/PurchaseManager';
-import Reports from './components/Reports';
-import Login from './components/Login';
+import Dashboard from './Dashboard';
+import ProductManager from './ProductManager';
+import CustomerManager from './CustomerManager';
+import POS from './POS';
+import Settings from './Settings';
+import OrderHistory from './OrderHistory';
+import PurchaseManager from './PurchaseManager';
+import Reports from './Reports';
+import Login from './Login';
 import { useStore } from '../store';
 import { useSync } from '../hooks/useSync';
 
@@ -76,7 +76,7 @@ const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount,
     { label: 'Sản phẩm', count: Number(unsyncedCount.products || 0), icon: Package, path: '/products' },
     { label: 'Đơn hàng', count: Number(unsyncedCount.orders || 0), icon: FileText, path: '/orders' },
     { label: 'Khách hàng', count: Number(unsyncedCount.customers || 0), icon: Users, path: '/customers' },
-    { label: 'Phiếu nhập', count: Number(unsyncedCount.purchases || 0), icon: PackagePlus, path: '/purchase' },
+    { label: 'Phiếu nhập', count: Number(unsyncedCount.purchayses || 0), icon: PackagePlus, path: '/purchase' },
     { label: 'Bảng giá', count: Number(unsyncedCount.productPrices || 0), icon: DollarSign, path: '/settings' },
     { label: 'Nhóm hàng', count: Number(unsyncedCount.productGroups || 0), icon: Layers, path: '/settings' },
     { label: 'Loại giá', count: Number(unsyncedCount.priceTypes || 0), icon: Tags, path: '/settings' },
@@ -159,15 +159,15 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
   }, [currentUser]);
 
   return (
-    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30 shrink-0">
+    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 lg:px-8 sticky top-0 z-30 shrink-0">
       <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
         <button onClick={onOpenSidebar} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors lg:hidden shrink-0">
           <Menu size={24} />
         </button>
         
-        <div className={`flex items-center px-2.5 py-1.5 rounded-full border transition-colors shrink-0 ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-          <div className={`w-1.5 h-1.5 rounded-full mr-2 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-          <span className={`text-[7px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+        <div className={`flex items-center px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full border transition-all shrink-0 shadow-sm ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-2 sm:mr-2.5 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+          <span className={`text-[10px] sm:text-[12px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
             {isOnline && isServerOnline ? 'Cloud Active' : 'System Offline'}
           </span>
         </div>
@@ -175,36 +175,36 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
 
       <div className="flex items-center space-x-2 sm:space-x-4 ml-auto shrink-0">
         <div className="relative">
-          <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className={`p-2 rounded-full relative transition-all ${isSyncMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}>
+          <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className={`p-1.5 sm:p-2 rounded-full relative transition-all ${isSyncMenuOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}>
             <Bell size={20} className={isSyncing ? 'animate-bounce text-indigo-600' : ''} />
             {totalUnsynced > 0 && <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white">{totalUnsynced > 9 ? '9+' : totalUnsynced}</span>}
           </button>
           {isSyncMenuOpen && <SyncPortalDropdown triggerRef={syncBtnRef} onClose={() => setIsSyncMenuOpen(false)} totalUnsynced={totalUnsynced} unsyncedCount={unsyncedCount} syncData={syncData} isSyncing={isSyncing} isOnline={isOnline} />}
         </div>
         
-        <button onClick={syncData} disabled={isSyncing || !isOnline} className={`flex items-center space-x-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border ${totalUnsynced > 0 ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'} disabled:opacity-50`}>
+        <button onClick={syncData} disabled={isSyncing || !isOnline} className={`flex items-center space-x-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border ${totalUnsynced > 0 ? 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'} disabled:opacity-50`}>
           <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-          <span className="hidden xs:inline whitespace-nowrap">{isSyncing ? 'Lưu...' : 'Đồng bộ'}</span>
+          <span className="hidden xs:inline whitespace-nowrap uppercase tracking-widest text-[9px] sm:text-[11px]">{isSyncing ? 'Lưu...' : 'Đồng bộ'}</span>
         </button>
 
         <div className="relative" ref={userMenuRef}>
-          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className={`flex items-center space-x-1 sm:space-x-2 p-1 rounded-2xl transition-all border border-transparent ${isUserMenuOpen ? 'bg-white shadow-lg border-slate-100' : 'hover:bg-slate-50'}`}>
-            <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-[10px] shrink-0">{getInitials()}</div>
-            <ChevronDown size={14} className={`text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+          <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className={`flex items-center space-x-1 sm:space-x-2 p-1 rounded-xl transition-all border border-transparent ${isUserMenuOpen ? 'bg-white shadow-lg border-slate-100' : 'hover:bg-slate-50'}`}>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-[9px] sm:text-[10px] shrink-0 shadow-md">{getInitials()}</div>
+            <ChevronDown size={12} className={`text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
           </button>
           {isUserMenuOpen && (
-            <div className="absolute right-0 mt-3 w-48 bg-white rounded-3xl shadow-3xl border border-slate-100 p-2 z-[100] animate-in zoom-in-95 duration-200 origin-top-right">
+            <div className="absolute right-0 mt-3 w-56 bg-white rounded-[24px] shadow-3xl border border-slate-100 p-1.5 z-[100] animate-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-50 mb-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cá nhân</p>
-                <p className="text-xs font-bold text-slate-700 truncate">{currentUser?.fullName}</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Cá nhân</p>
+                <p className="text-[13px] font-bold text-slate-700 truncate">{currentUser?.fullName}</p>
               </div>
-              <Link to="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center space-x-3 px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all group">
+              <Link to="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center space-x-3 px-3.5 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all group">
                 <UserIcon size={16} className="text-slate-400 group-hover:text-indigo-600" />
-                <span className="font-bold text-xs">Hồ sơ của tôi</span>
+                <span className="font-bold text-[11px]">Hồ sơ của tôi</span>
               </Link>
-              <button onClick={logout} className="w-full flex items-center space-x-3 px-4 py-2.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-all group">
+              <button onClick={logout} className="w-full flex items-center space-x-3 px-3.5 py-2.5 text-rose-600 hover:bg-rose-50 rounded-xl transition-all group">
                 <LogOut size={16} className="text-rose-400 group-hover:text-rose-600" />
-                <span className="font-bold text-xs">Đăng xuất</span>
+                <span className="font-bold text-[11px]">Đăng xuất</span>
               </button>
             </div>
           )}

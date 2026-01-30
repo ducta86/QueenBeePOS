@@ -70,15 +70,11 @@ export const useSync = () => {
     if (!backendUrl) return;
     const table = (db as any)[tableName];
     
-    // 1. PUSH: Gửi dữ liệu từ Local lên Server
     const allLocalUnsynced = await table.where('synced').equals(0).toArray();
     for (const item of allLocalUnsynced) {
       try {
-        // LỌC DỮ LIỆU: Loại bỏ các trường hệ thống Local mà PocketBase không dùng/không cho phép ghi đè
-        // PocketBase tự quản lý created/updated. Việc gửi 'updatedAt' hay 'deleted' (nếu ko có trong schema) sẽ gây lỗi 400.
-        const { synced, deleted, updatedAt, createdAt, id: localId, ...cleanPayload } = item;
+        const { synced, deleted, updatedAt, createdAt, id: localId, ...rawPayload } = item;
         
-        // Xử lý Xóa nếu bản ghi bị đánh dấu deleted=1
         if (deleted === 1) {
           const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, { method: 'DELETE' });
           if (deleteResp.ok || deleteResp.status === 404) {
@@ -87,7 +83,18 @@ export const useSync = () => {
           continue;
         }
 
-        // Bước 1: Kiểm tra bản ghi đã tồn tại trên Server chưa (Tránh lỗi 404 khi PATCH)
+        // CHUẨN HÓA PAYLOAD: Loại bỏ các field rỗng cho các trường liên kết (Relation)
+        // Trong PocketBase, nếu field là Relation mà gửi "" sẽ bị lỗi 400.
+        const cleanPayload: any = {};
+        Object.keys(rawPayload).forEach(key => {
+          const value = rawPayload[key];
+          // Nếu là các trường ID liên kết mà bị rỗng thì không gửi lên
+          if ((key.toLowerCase().endsWith('id') || key === 'lineId' || key === 'groupId') && value === "") {
+             return; 
+          }
+          cleanPayload[key] = value;
+        });
+
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
         
@@ -96,8 +103,6 @@ export const useSync = () => {
           : `${backendUrl}/api/collections/${collectionName}/records`;
         
         const method = exists ? 'PATCH' : 'POST';
-        
-        // PocketBase yêu cầu ID trong body khi POST nếu muốn tự định nghĩa ID
         const body = method === 'POST' ? { id: localId, ...cleanPayload } : cleanPayload;
 
         const response = await fetch(url, {
@@ -110,19 +115,19 @@ export const useSync = () => {
           await table.update(localId, { synced: 1 });
         } else {
           const errData = await response.json();
-          // Log chi tiết lỗi để debug trong Console
-          console.error(`Sync 400 Error for ${collectionName}:`, {
-            sentBody: body,
-            serverMsg: errData.message,
-            validation: errData.data
-          });
+          // CẢI TIẾN: Log lỗi cực kỳ chi tiết để bạn nhìn thấy "data" bên trong
+          console.group(`Sync Error 400: ${collectionName}`);
+          console.error("Server Message:", errData.message);
+          console.error("Validation Details (Bấm vào đây để xem lỗi trường nào):", errData.data);
+          console.log("Payload sent:", body);
+          console.groupEnd();
         }
       } catch (err) {
         console.error(`Network Error for ${collectionName}:`, err);
       }
     }
 
-    // 2. PULL: Kéo dữ liệu mới từ Server về Local
+    // PULL logic
     try {
       const lastSyncISO = lastSync 
         ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] 
@@ -138,13 +143,11 @@ export const useSync = () => {
           const remoteTs = new Date(record.updated).getTime();
           
           if (!local || remoteTs > (local.updatedAt || 0)) {
-            // Khi lưu ngược về Local, ta map ngược lại các trường hệ thống của Local
             await table.put({ 
               ...record, 
               synced: 1, 
               deleted: 0, 
               updatedAt: remoteTs,
-              // Giữ lại các trường quan trọng nếu schema local yêu cầu
               createdAt: record.created ? new Date(record.created).getTime() : Date.now()
             });
           }
@@ -162,19 +165,12 @@ export const useSync = () => {
 
     setIsSyncing(true);
     try {
-      // THỨ TỰ ĐỒNG BỘ LÀ QUAN TRỌNG (Sequential)
-      // 1. Danh mục cấp 1 (Không phụ thuộc ai)
+      // ĐỒNG BỘ TUẦN TỰ
       await syncCollection('priceTypes', 'price_types');
       await syncCollection('productGroups', 'product_groups');
       await syncCollection('users', 'profiles');
-      
-      // 2. Danh mục cấp 2 (Phụ thuộc cấp 1)
-      // Ví dụ: products cần groupId, priceTypeId
       await syncCollection('products', 'products');
       await syncCollection('customers', 'customers');
-      
-      // 3. Dữ liệu chi tiết (Phụ thuộc cấp 2)
-      // Ví dụ: product_prices CẦN productId phải tồn tại trên Server
       await syncCollection('productPrices', 'product_prices');
       await syncCollection('orders', 'orders');
       await syncCollection('purchases', 'purchases');

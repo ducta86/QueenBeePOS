@@ -76,7 +76,7 @@ const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount,
     { label: 'Sản phẩm', count: Number(unsyncedCount.products || 0), icon: Package, path: '/products' },
     { label: 'Đơn hàng', count: Number(unsyncedCount.orders || 0), icon: FileText, path: '/orders' },
     { label: 'Khách hàng', count: Number(unsyncedCount.customers || 0), icon: Users, path: '/customers' },
-    { label: 'Phiếu nhập', count: Number(unsyncedCount.purchayses || 0), icon: PackagePlus, path: '/purchase' },
+    { label: 'Phiếu nhập', count: Number(unsyncedCount.purchases || 0), icon: PackagePlus, path: '/purchase' },
     { label: 'Bảng giá', count: Number(unsyncedCount.productPrices || 0), icon: DollarSign, path: '/settings' },
     { label: 'Nhóm hàng', count: Number(unsyncedCount.productGroups || 0), icon: Layers, path: '/settings' },
     { label: 'Loại giá', count: Number(unsyncedCount.priceTypes || 0), icon: Tags, path: '/settings' },
@@ -167,7 +167,7 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
         
         <div className={`flex items-center px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full border transition-all shrink-0 shadow-sm ${isOnline && isServerOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
           <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-1.5 sm:mr-2.5 ${isOnline && isServerOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-          <span className={`text-[10px] sm:text-[12px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+          <span className={`text-[10px] sm:text-[12px] font-black uppercase tracking-widest whitespace-nowrap ${isOnline && isServerOnline ? 'text-emerald-700' : 'text-rose-600'}`}>
             {isOnline && isServerOnline ? 'Cloud Active' : 'System Offline'}
           </span>
         </div>

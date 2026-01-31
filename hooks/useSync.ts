@@ -78,6 +78,7 @@ export const useSync = () => {
       if (!depId || depId === 'walk-in') continue;
 
       const parentRecord = await d.table.get(depId);
+      // Nếu không tìm thấy record cha cục bộ hoặc record cha chưa được đẩy lên server
       if (!parentRecord || parentRecord.synced === 0) {
         return false;
       }
@@ -105,24 +106,36 @@ export const useSync = () => {
           continue;
         }
 
+        // Tinh lọc payload: Chuyển đổi dữ liệu cho PocketBase
         const cleanPayload: any = {};
         let hasInvalidRelation = false;
 
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
+          // Kiểm tra tính hợp lệ của các trường quan hệ (phải là 15 ký tự)
           if (['priceTypeId', 'productId', 'customerId', 'groupId', 'typeId'].includes(key)) {
              if (value && String(value).length !== 15 && value !== 'walk-in') {
                 hasInvalidRelation = true;
              }
           }
-          if (value !== "") cleanPayload[key] = value;
+          
+          // Không gửi các giá trị null/undefined, nhưng cho phép 0 và false
+          if (value !== undefined && value !== null && value !== "") {
+            cleanPayload[key] = value;
+          } else if (value === 0 || value === false) {
+            cleanPayload[key] = value;
+          }
         });
 
-        if (hasInvalidRelation) continue;
+        if (hasInvalidRelation) {
+          console.warn(`Skipping ${collectionName} ${localId} due to invalid relation ID format.`);
+          continue;
+        }
 
         const isReady = await checkDependenciesSynced(tableName, item);
         if (!isReady) continue; 
 
+        // Kiểm tra xem record đã tồn tại trên server chưa
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
         
@@ -131,6 +144,7 @@ export const useSync = () => {
           : `${backendUrl}/api/collections/${collectionName}/records`;
         
         const method = exists ? 'PATCH' : 'POST';
+        // PocketBase yêu cầu field "id" trong body nếu dùng POST để chỉ định ID thủ công
         const body = method === 'POST' ? { id: localId, ...cleanPayload } : cleanPayload;
 
         const response = await fetch(url, {
@@ -142,9 +156,13 @@ export const useSync = () => {
         if (response.ok) {
           await table.update(localId, { synced: 1 });
           hasChanges = true;
+        } else {
+          // LOG LỖI CHI TIẾT ĐỂ DEBUG (QUAN TRỌNG)
+          const errorInfo = await response.json();
+          console.error(`PocketBase Sync Error (400) for ${collectionName}:`, errorInfo);
         }
       } catch (err) {
-        console.error(`Push Error for ${collectionName}:`, err);
+        console.error(`Push Failure for ${collectionName}:`, err);
       }
     }
 
@@ -225,7 +243,6 @@ export const useSync = () => {
   }, [isSyncing, backendUrl, lastSync, checkServerHealth, syncCollection, checkUnsynced, fetchInitialData]);
 
   useEffect(() => {
-    // Chỉ chạy lần đầu khi component mount hoặc backendUrl thay đổi
     checkUnsynced();
     checkServerHealth();
 
@@ -234,7 +251,6 @@ export const useSync = () => {
     }, 5000);
 
     syncTimerRef.current = setInterval(() => {
-      // Gọi trực tiếp syncData mà không cần checkServerHealth ở đây vì syncData đã có check rồi
       syncData();
     }, 20000); 
 
@@ -242,7 +258,7 @@ export const useSync = () => {
       if (syncTimerRef.current) clearInterval(syncTimerRef.current);
       if (countTimerRef.current) clearInterval(countTimerRef.current);
     };
-  }, [checkServerHealth, checkUnsynced, syncData]); // dependencies giờ đã ổn định nhờ useCallback
+  }, [checkServerHealth, checkUnsynced, syncData]);
 
   return { 
     syncData, isSyncing, isServerOnline, lastSync, unsyncedCount, checkUnsynced,

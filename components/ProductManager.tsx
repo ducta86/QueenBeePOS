@@ -440,6 +440,14 @@ const ProductManager = () => {
     if (!formData.unit.trim()) return "Vui lòng nhập đơn vị tính.";
     if (!formData.groupId) return "Vui lòng chọn nhóm sản phẩm.";
     
+    // Kiểm tra không cho để trống bất kỳ loại giá bán nào
+    for (const pt of priceTypes) {
+      const priceVal = prices[pt.id];
+      if (priceVal === undefined || priceVal === null || String(priceVal).trim() === "") {
+        return `Vui lòng nhập giá bán cho loại: ${pt.name}`;
+      }
+    }
+    
     return null;
   };
 
@@ -448,6 +456,7 @@ const ProductManager = () => {
     const errorMsg = validate();
     if (errorMsg) {
       setLocalError(errorMsg);
+      // Cuộn lên đầu form hoặc vị trí thông báo nếu cần, hoặc đơn giản là để useEffect/state lo
       return;
     }
 
@@ -463,7 +472,7 @@ const ProductManager = () => {
 
     const pricePayload = priceTypes.map(pt => ({
       priceTypeId: pt.id,
-      price: prices[pt.id] || 0
+      price: prices[pt.id]
     }));
 
     try {
@@ -873,7 +882,7 @@ const ProductManager = () => {
                     <div className="flex-1 w-full space-y-4">
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Đường dẫn Online (URL)</label>
-                        <input className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-[12px] font-medium outline-none focus:ring-2 focus:ring-indigo-500" value={formData.image && !formData.image.startsWith('data:') ? formData.image : ''} onChange={e => setFormData({...formData, image: e.target.value})} placeholder="https://example.com/image.jpg" />
+                        <input className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-[12px] font-medium outline-none focus:ring-2 focus:ring-indigo-50" value={formData.image && !formData.image.startsWith('data:') ? formData.image : ''} onChange={e => setFormData({...formData, image: e.target.value})} placeholder="https://example.com/image.jpg" />
                       </div>
                       <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-600 flex items-center justify-center space-x-2 active:scale-95 transition-all shadow-sm">
                          <Upload size={18} /> <span>Chọn ảnh từ thiết bị</span>

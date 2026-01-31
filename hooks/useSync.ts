@@ -106,36 +106,40 @@ export const useSync = () => {
           continue;
         }
 
-        // Tinh lọc payload: Chuyển đổi dữ liệu cho PocketBase
+        // Tinh lọc payload: Loại bỏ các trường rỗng và trường ID quan hệ không hợp lệ
         const cleanPayload: any = {};
-        let hasInvalidRelation = false;
+        let skipPush = false;
 
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
-          // Kiểm tra tính hợp lệ của các trường quan hệ (phải là 15 ký tự)
-          if (['priceTypeId', 'productId', 'customerId', 'groupId', 'typeId'].includes(key)) {
+          
+          // Kiểm tra tính hợp lệ của ID Quan hệ (PocketBase yêu cầu 15 ký tự)
+          if (['groupId', 'typeId', 'productId', 'priceTypeId', 'customerId'].includes(key)) {
              if (value && String(value).length !== 15 && value !== 'walk-in') {
-                hasInvalidRelation = true;
+                skipPush = true;
              }
           }
-          
-          // Không gửi các giá trị null/undefined, nhưng cho phép 0 và false
+
+          // Không gửi chuỗi rỗng cho các trường quan hệ hoặc mã
           if (value !== undefined && value !== null && value !== "") {
             cleanPayload[key] = value;
-          } else if (value === 0 || value === false) {
+          } else if (typeof value === 'number' || typeof value === 'boolean') {
             cleanPayload[key] = value;
           }
         });
 
-        if (hasInvalidRelation) {
-          console.warn(`Skipping ${collectionName} ${localId} due to invalid relation ID format.`);
-          continue;
+        if (skipPush) {
+           console.warn(`[Sync] Bỏ qua ${collectionName}:${localId} do ID quan hệ không hợp lệ.`);
+           continue;
         }
 
         const isReady = await checkDependenciesSynced(tableName, item);
-        if (!isReady) continue; 
+        if (!isReady) {
+           console.debug(`[Sync] ${collectionName}:${localId} đang chờ bản ghi cha đồng bộ...`);
+           continue;
+        }
 
-        // Kiểm tra xem record đã tồn tại trên server chưa
+        // Kiểm tra sự tồn tại trên server trước khi quyết định POST hay PATCH
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
         
@@ -144,7 +148,6 @@ export const useSync = () => {
           : `${backendUrl}/api/collections/${collectionName}/records`;
         
         const method = exists ? 'PATCH' : 'POST';
-        // PocketBase yêu cầu field "id" trong body nếu dùng POST để chỉ định ID thủ công
         const body = method === 'POST' ? { id: localId, ...cleanPayload } : cleanPayload;
 
         const response = await fetch(url, {
@@ -157,12 +160,17 @@ export const useSync = () => {
           await table.update(localId, { synced: 1 });
           hasChanges = true;
         } else {
-          // LOG LỖI CHI TIẾT ĐỂ DEBUG (QUAN TRỌNG)
           const errorInfo = await response.json();
-          console.error(`PocketBase Sync Error (400) for ${collectionName}:`, errorInfo);
+          // LOG LỖI CHI TIẾT (Data chứa thông tin field nào bị lỗi)
+          console.error(`[PocketBase Error 400] ${collectionName} fail:`, {
+            id: localId,
+            message: errorInfo.message,
+            validationErrors: errorInfo.data, // Xem lỗi ở field nào tại đây
+            sentPayload: body
+          });
         }
       } catch (err) {
-        console.error(`Push Failure for ${collectionName}:`, err);
+        console.error(`[Sync Push] Lỗi kết nối khi đẩy ${collectionName}:`, err);
       }
     }
 
@@ -196,7 +204,7 @@ export const useSync = () => {
         }
       }
     } catch (err) {
-      console.error(`Pull failed for ${collectionName}:`, err);
+      console.error(`[Sync Pull] Lỗi tải dữ liệu ${collectionName}:`, err);
     }
     
     return hasChanges;

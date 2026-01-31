@@ -87,23 +87,5 @@ export const seedDatabase = async () => {
     });
   }
   
-  const ptCount = await db.priceTypes.count();
-  if (ptCount === 0) {
-    // Tạo sẵn loại giá mặc định với ID đúng 15 ký tự thay vì 'pt-retail'
-    await db.priceTypes.add({
-      id: 'pricetype000001',
-      name: 'Giá bán lẻ',
-      updatedAt: Date.now(),
-      synced: 0,
-      deleted: 0
-    });
-  }
-
-  const ctCount = await db.customerTypes.count();
-  if (ctCount === 0) {
-    await db.customerTypes.bulkPut([
-      { id: 'custype00000001', name: 'Khách lẻ', defaultPriceTypeId: 'pricetype000001' },
-      { id: 'custype00000002', name: 'Khách VIP', defaultPriceTypeId: 'pricetype000001' }
-    ]);
-  }
+  // Đã gỡ bỏ phần tự động tạo PriceTypes và CustomerTypes để hệ thống bắt đầu sạch dữ liệu.
 };

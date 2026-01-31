@@ -15,20 +15,16 @@ import { Html5Qrcode } from "html5-qrcode";
 
 type PrintSize = '58mm' | '80mm' | 'A4';
 
-// Utility beep sound using Web Audio API
 const playBeep = () => {
   try {
     const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
-
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + 0.1);
   } catch (e) {
@@ -45,9 +41,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onC
     if (scannerRef.current) {
       try {
         const state = scannerRef.current.getState();
-        if (state === 2 || state === 3) { // 2: SCANNING, 3: PAUSED
-           await scannerRef.current.stop();
-        }
+        if (state === 2 || state === 3) await scannerRef.current.stop();
       } catch (e) {
         console.warn("Stop failed:", e);
       } finally {
@@ -64,25 +58,17 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onC
     if (isOpen) {
       setIsInitializing(true);
       setScannerError(null);
-      
       const startScanner = async () => {
         try {
           const html5QrCode = new Html5Qrcode("pos-reader");
           scannerRef.current = html5QrCode;
-
           await html5QrCode.start(
             { facingMode: "environment" },
-            {
-              fps: 15,
-              qrbox: { width: 250, height: 150 },
-            },
+            { fps: 15, qrbox: { width: 250, height: 150 } },
             async (decodedText) => {
               if (!isMounted) return;
-              
               playBeep(); 
               if (navigator.vibrate) navigator.vibrate(100);
-              
-              // Call onScan and immediately stop camera/close modal
               onScan(decodedText);
               await stopAndClose();
             },
@@ -90,19 +76,16 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onC
           );
           if (isMounted) setIsInitializing(false);
         } catch (err) {
-          console.error("Camera error:", err);
           if (isMounted) {
             setScannerError("Không thể truy cập Camera. Vui lòng kiểm tra quyền trình duyệt.");
             setIsInitializing(false);
           }
         }
       };
-
       const timer = setTimeout(startScanner, 100);
       return () => {
         isMounted = false;
         clearTimeout(timer);
-        // Explicitly stop if unmounting while scanning
         if (scannerRef.current) {
           const state = scannerRef.current.getState();
           if (state === 2 || state === 3) scannerRef.current.stop();
@@ -123,7 +106,6 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onC
            </div>
            <button onClick={stopAndClose} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
         </div>
-        
         <div className="p-6">
           <div className="relative aspect-square md:aspect-video bg-slate-900 rounded-[28px] overflow-hidden border-4 border-slate-100 shadow-inner">
              <div id="pos-reader" className="w-full h-full"></div>
@@ -155,13 +137,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, onScan }: { isOpen: boolean, onC
            <button onClick={stopAndClose} className="px-8 py-3 bg-white border border-slate-200 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-100 transition-all">Đóng</button>
         </div>
       </div>
-      <style>{`
-        @keyframes scan {
-          0% { top: 0; }
-          50% { top: 100%; }
-          100% { top: 0; }
-        }
-      `}</style>
+      <style>{`@keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }`}</style>
     </div>
   );
 };
@@ -203,12 +179,10 @@ const POS = () => {
     const updatePrices = async () => {
       const targetType = selectedCustomer?.typeId || priceTypes.find(p => p.id.includes('retail'))?.id || priceTypes[0]?.id;
       if (!targetType) return;
-      
       const prices = await db.productPrices.where('priceTypeId').equals(targetType).toArray();
       const priceMap: Record<string, number> = {};
       prices.forEach(p => priceMap[p.productId] = p.price);
       setCurrentPrices(priceMap);
-
       if (cart.length > 0) {
         setCart(prev => prev.map(item => ({
           ...item,
@@ -284,12 +258,9 @@ const POS = () => {
 
   const subTotal = cart.reduce((sum, item) => sum + item.total, 0);
   const parseNumber = (str: string) => Number(String(str).replace(/\D/g, ''));
-  
   const handleDiscountInput = (val: string) => {
     let num = val.replace(/\D/g, '');
-    if (discountType === 'percentage') {
-      if (Number(num) > 100) num = '100';
-    }
+    if (discountType === 'percentage') if (Number(num) > 100) num = '100';
     setDiscountValue(num || '0');
   };
 
@@ -311,24 +282,14 @@ const POS = () => {
   const handleCheckout = async () => {
     const finalOrderId = tempOrderId || generateId();
     const finalCashReceived = paymentMethod === 'qr' ? total : (parseNumber(cashReceived) || total);
-    
     const order = {
       id: finalOrderId,
       customerId: selectedCustomer?.id || 'walk-in',
       customerName: selectedCustomer?.name || 'Khách lẻ',
-      total,
-      subTotal,
-      discountAmt,
-      discount: discNumeric,
-      discountType,
-      items: cart,
-      paymentMethod,
-      cashReceived: finalCashReceived,
+      total, subTotal, discountAmt, discount: discNumeric, discountType,
+      items: cart, paymentMethod, cashReceived: finalCashReceived,
       changeAmount: Math.max(0, finalCashReceived - total),
-      updatedAt: Date.now(),
-      synced: 0,
-      deleted: 0,
-      status: 'completed' as const
+      updatedAt: Date.now(), synced: 0, deleted: 0, status: 'completed' as const
     };
     await db.orders.add(order);
     for (const item of cart) await updateStock(item.productId, -item.qty);
@@ -389,13 +350,9 @@ const POS = () => {
   };
 
   return (
-    <div className="h-full flex flex-col gap-4 animate-in fade-in no-print">
+    <div className="flex flex-col gap-4 animate-in fade-in no-print lg:h-full">
       <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #printable-invoice, #printable-invoice * { visibility: visible; }
-          #printable-invoice { position: absolute; left: 0; top: 0; width: 100% !important; background: white !important; margin: 0; padding: 0; }
-        }
+        @media print { body * { visibility: hidden; } #printable-invoice, #printable-invoice * { visibility: visible; } #printable-invoice { position: absolute; left: 0; top: 0; width: 100% !important; background: white !important; margin: 0; padding: 0; } }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
       `}</style>
@@ -407,17 +364,15 @@ const POS = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
-        <div className="lg:col-span-8 flex flex-col gap-4 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:flex-1 lg:min-h-0">
+        <div className="lg:col-span-8 flex flex-col gap-4 lg:min-h-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
             <div className="relative" ref={customerRef}>
               <div 
                 className={`bg-white p-3 rounded-2xl border ${selectedCustomer ? 'border-indigo-600 ring-2 ring-indigo-50' : 'border-slate-200'} flex items-center space-x-3 cursor-pointer h-[64px] transition-all`}
                 onClick={() => setIsCustomerFocused(!isCustomerFocused)}
               >
-                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 shadow-sm border border-indigo-100">
-                  <User size={18} />
-                </div>
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 shadow-sm border border-indigo-100"><User size={18} /></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Khách hàng</p>
                   <p className="text-sm font-bold truncate leading-none text-slate-800">{selectedCustomer?.name || 'Khách lẻ'}</p>
@@ -427,13 +382,7 @@ const POS = () => {
               {isCustomerFocused && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[70] overflow-hidden">
                   <div className="p-3 bg-slate-50 border-b border-slate-100">
-                    <input 
-                      autoFocus
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Tìm tên hoặc số điện thoại..."
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                    />
+                    <input autoFocus className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Tìm tên hoặc SĐT..." value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} />
                   </div>
                   <div className="max-h-60 overflow-y-auto scrollbar-hide">
                     <button onClick={() => { setSelectedCustomer(null); setIsCustomerFocused(false); }} className="w-full p-4 hover:bg-slate-50 text-left border-b border-slate-50 flex items-center space-x-3">
@@ -446,9 +395,7 @@ const POS = () => {
                           <div className="text-sm font-bold group-hover:text-indigo-600">{c.name}</div>
                           <div className="text-xs text-slate-400 font-medium">{c.phone}</div>
                         </div>
-                        <span className="text-[10px] font-black uppercase text-indigo-500 bg-indigo-50 px-2 py-1 rounded-lg">
-                          {priceTypes.find(t => t.id === c.typeId)?.name || 'Giá lẻ'}
-                        </span>
+                        <span className="text-[10px] font-black uppercase text-indigo-500 bg-indigo-50 px-2 py-1 rounded-lg">{priceTypes.find(t => t.id === c.typeId)?.name || 'Giá lẻ'}</span>
                       </button>
                     ))}
                   </div>
@@ -458,36 +405,18 @@ const POS = () => {
 
             <div className="relative" ref={productSearchRef}>
               <div className="bg-white p-3 rounded-2xl border border-slate-200 flex items-center space-x-3 focus-within:ring-2 focus-within:ring-indigo-50 focus-within:border-indigo-600 h-[64px] transition-all">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100">
-                  <Search size={18} />
-                </div>
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100"><Search size={18} /></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Hàng hóa</p>
-                  <input 
-                    className="w-full bg-transparent border-none outline-none text-sm font-bold p-0 placeholder:text-slate-300 focus:ring-0"
-                    placeholder="Tìm tên hoặc quét..."
-                    value={productSearch}
-                    onFocus={() => setIsProductSearchFocused(true)}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                  />
+                  <input className="w-full bg-transparent border-none outline-none text-sm font-bold p-0 placeholder:text-slate-300 focus:ring-0" placeholder="Tìm tên hoặc quét..." value={productSearch} onFocus={() => setIsProductSearchFocused(true)} onChange={(e) => setProductSearch(e.target.value)} />
                 </div>
-                <button 
-                  type="button"
-                  onClick={() => setShowScanner(true)}
-                  className="p-2 hover:bg-indigo-50 rounded-xl transition-all text-indigo-600 active:scale-90"
-                >
-                  <Barcode size={24} strokeWidth={2.5} />
-                </button>
+                <button type="button" onClick={() => setShowScanner(true)} className="p-2 hover:bg-indigo-50 rounded-xl transition-all text-indigo-600 active:scale-90"><Barcode size={24} strokeWidth={2.5} /></button>
               </div>
               {isProductSearchFocused && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
                    <div className="max-h-80 overflow-y-auto scrollbar-hide">
                     {filteredProducts.map(p => (
-                      <button 
-                        key={p.id} 
-                        onClick={() => addToCart(p)}
-                        className="w-full p-4 hover:bg-slate-50 text-left border-b border-slate-50 flex items-center justify-between transition-colors"
-                      >
+                      <button key={p.id} onClick={() => addToCart(p)} className="w-full p-4 hover:bg-slate-50 text-left border-b border-slate-50 flex items-center justify-between transition-colors">
                           <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border border-slate-100">
                                 {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <Package size={20} className="text-slate-300" />}
@@ -499,29 +428,19 @@ const POS = () => {
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-black text-indigo-600">{(currentPrices[p.id] || 0).toLocaleString()}đ</div>
-                            <div className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full mt-1 w-fit ml-auto ${getStockColor(p.stock)}`}>
-                                Tồn: {p.stock}
-                            </div>
+                            <div className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full mt-1 w-fit ml-auto ${getStockColor(p.stock)}`}>Tồn: {p.stock}</div>
                           </div>
                       </button>
                     ))}
-                    {filteredProducts.length === 0 && (
-                        <div className="p-10 text-center opacity-20">
-                            <PackageSearch size={40} className="mx-auto mb-2" />
-                            <p className="text-xs font-black uppercase tracking-widest">Không có kết quả</p>
-                        </div>
-                    )}
                    </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm lg:flex-1 flex flex-col overflow-hidden lg:min-h-0">
             <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between shrink-0">
-               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] flex items-center">
-                 <ShoppingCart size={14} className="mr-2 text-indigo-600" /> CHI TIẾT GIỎ HÀNG
-               </h3>
+               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] flex items-center"><ShoppingCart size={14} className="mr-2 text-indigo-600" /> GIỎ HÀNG</h3>
                <button onClick={() => setCart([])} className="text-[9px] font-black text-red-500 hover:text-red-600 uppercase tracking-widest bg-red-50 px-3 py-1.5 rounded-xl transition-all">Xóa tất cả</button>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hide">
@@ -550,21 +469,12 @@ const POS = () => {
                        <td className="px-2 md:px-6 py-4">
                           <div className="flex items-center bg-white rounded-lg border border-slate-100 p-0.5 shadow-sm w-fit mx-auto">
                              <button onClick={() => handleQtyChange(item.productId, item.qty - 1)} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"><Minus size={12} /></button>
-                             <input 
-                              type="text" 
-                              inputMode="numeric"
-                              pattern="[0-9]*"
-                              className="w-6 md:w-10 text-center font-black text-xs md:text-sm border-none focus:ring-0 outline-none p-0 bg-transparent" 
-                              value={item.qty || ''} 
-                              onChange={(e) => handleQtyChange(item.productId, parseInt(e.target.value) || 0)}
-                             />
+                             <input type="text" inputMode="numeric" pattern="[0-9]*" className="w-6 md:w-10 text-center font-black text-xs md:text-sm border-none focus:ring-0 outline-none p-0 bg-transparent" value={item.qty || ''} onChange={(e) => handleQtyChange(item.productId, parseInt(e.target.value) || 0)} />
                              <button onClick={() => handleQtyChange(item.productId, item.qty + 1)} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"><Plus size={12} /></button>
                           </div>
                        </td>
                        <td className="hidden md:table-cell px-6 py-4 text-right text-sm font-bold text-slate-600 whitespace-nowrap">{item.price.toLocaleString()}đ</td>
-                       <td className="px-2 md:px-6 py-4 text-right text-[11px] md:text-sm font-black text-indigo-600 whitespace-nowrap">
-                         {item.total.toLocaleString()}đ
-                       </td>
+                       <td className="px-2 md:px-6 py-4 text-right text-[11px] md:text-sm font-black text-indigo-600 whitespace-nowrap">{item.total.toLocaleString()}đ</td>
                        <td className="px-1 md:px-4 py-4 text-right">
                           <button onClick={() => setCart(cart.filter(i => i.id !== item.id))} className="text-slate-200 hover:text-red-500 transition-colors p-1"><Trash2 size={14} /></button>
                        </td>
@@ -603,134 +513,73 @@ const POS = () => {
                        </div>
                     </div>
                     <div className="relative">
-                      <input 
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-right font-black text-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
-                        value={discountValue === '0' ? '' : (discountType === 'amount' ? parseNumber(discountValue).toLocaleString() : discountValue)}
-                        onChange={(e) => handleDiscountInput(e.target.value)}
-                        placeholder="0"
-                      />
+                      <input type="text" inputMode="numeric" pattern="[0-9]*" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-right font-black text-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all" value={discountValue === '0' ? '' : (discountType === 'amount' ? parseNumber(discountValue).toLocaleString() : discountValue)} onChange={(e) => handleDiscountInput(e.target.value)} placeholder="0" />
                       {parseNumber(discountValue) > 0 && (
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-rose-50 text-rose-600 px-3 py-1 rounded-xl text-[9px] font-black border border-rose-100">
-                           -{discountAmt.toLocaleString()}đ
-                        </div>
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-rose-50 text-rose-600 px-3 py-1 rounded-xl text-[9px] font-black border border-rose-100">-{discountAmt.toLocaleString()}đ</div>
                       )}
                     </div>
                  </div>
                  <div className="h-px bg-slate-100 my-4"></div>
                  <div className="flex justify-between items-end px-1 pt-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic leading-none mb-1 text-slate-500">Tổng tiền</span>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic leading-none mb-1">Tổng tiền</span>
                     <span className="text-3xl font-black text-rose-600 tracking-tighter leading-none">{total.toLocaleString()}đ</span>
                  </div>
               </div>
-
               <div className="p-6 bg-slate-900 space-y-4">
                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => setPaymentMethod('cash')} className={`py-4 rounded-2xl font-black text-[10px] uppercase border transition-all flex items-center justify-center space-x-2 ${paymentMethod === 'cash' ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-950/20' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'}`}>
-                      <DollarSign size={16} /> <span>Tiền mặt</span>
-                    </button>
-                    <button onClick={() => setPaymentMethod('qr')} className={`py-4 rounded-2xl font-black text-[10px] uppercase border transition-all flex items-center justify-center space-x-2 ${paymentMethod === 'qr' ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-950/20' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'}`}>
-                      <QrCode size={16} /> <span>Quét QR</span>
-                    </button>
+                    <button onClick={() => setPaymentMethod('cash')} className={`py-4 rounded-2xl font-black text-[10px] uppercase border transition-all flex items-center justify-center space-x-2 ${paymentMethod === 'cash' ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-950/20' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'}`}><DollarSign size={16} /> <span>Tiền mặt</span></button>
+                    <button onClick={() => setPaymentMethod('qr')} className={`py-4 rounded-2xl font-black text-[10px] uppercase border transition-all flex items-center justify-center space-x-2 ${paymentMethod === 'qr' ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-950/20' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'}`}><QrCode size={16} /> <span>Quét QR</span></button>
                  </div>
-                 <button 
-                  onClick={handleOpenPayment}
-                  disabled={cart.length === 0}
-                  className="w-full py-6 bg-emerald-600 text-white rounded-[28px] font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-emerald-950 hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center space-x-3 disabled:grayscale disabled:opacity-30"
-                 >
-                    <Wallet size={20} />
-                    <span>THANH TOÁN NGAY</span>
-                 </button>
+                 <button onClick={handleOpenPayment} disabled={cart.length === 0} className="w-full py-6 bg-emerald-600 text-white rounded-[28px] font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-emerald-950 hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center space-x-3 disabled:grayscale disabled:opacity-30"><Wallet size={20} /><span>THANH TOÁN</span></button>
               </div>
            </div>
         </div>
       </div>
 
-      <BarcodeScannerModal 
-        isOpen={showScanner} 
-        onClose={() => setShowScanner(false)} 
-        onScan={handleBarcodeScan} 
-      />
+      <BarcodeScannerModal isOpen={showScanner} onClose={() => setShowScanner(false)} onScan={handleBarcodeScan} />
 
       {showPaymentModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 no-print">
           <div className="bg-white w-full max-w-[420px] rounded-[32px] shadow-3xl flex flex-col animate-in zoom-in-95 overflow-hidden border border-slate-100">
             <div className="px-5 py-2.5 border-b border-slate-50 flex items-center justify-between shrink-0">
                <div className="flex items-center space-x-2">
-                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center shadow-inner border ${paymentMethod === 'qr' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
-                    {paymentMethod === 'qr' ? <QrCode size={14} /> : <DollarSign size={14} />}
-                 </div>
-                 <div>
-                    <h2 className="text-[9px] font-black text-slate-800 uppercase tracking-widest leading-none mb-0.5">{paymentMethod === 'qr' ? 'Thanh toán QR' : 'Xác nhận thu'}</h2>
-                    <p className="text-[7px] text-slate-400 font-bold uppercase tracking-widest leading-none">Giao dịch đơn hàng</p>
-                 </div>
+                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center shadow-inner border ${paymentMethod === 'qr' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>{paymentMethod === 'qr' ? <QrCode size={14} /> : <DollarSign size={14} />}</div>
+                 <div><h2 className="text-[9px] font-black text-slate-800 uppercase tracking-widest leading-none mb-0.5">{paymentMethod === 'qr' ? 'QR' : 'Tiền mặt'}</h2><p className="text-[7px] text-slate-400 font-bold uppercase tracking-widest leading-none">Giao dịch đơn hàng</p></div>
                </div>
-               <button onClick={() => setShowPaymentModal(false)} className="p-1 text-slate-300 hover:bg-slate-50 hover:text-slate-900 rounded-full transition-all">
-                 <X size={18} />
-               </button>
+               <button onClick={() => setShowPaymentModal(false)} className="p-1 text-slate-300 hover:bg-slate-50 hover:text-slate-900 rounded-full transition-all"><X size={18} /></button>
             </div>
-            
             <div className="px-5 py-3 space-y-3 shrink-0 flex flex-col items-center">
                <div className="bg-slate-950 rounded-[20px] p-3 text-center shadow-lg border border-white/5 w-full">
                   <p className="text-[8px] text-slate-500 font-black uppercase mb-0.5 tracking-[0.1em]">Cần thanh toán</p>
-                  <h1 className="text-xl font-black text-white tracking-tighter">
-                    {total.toLocaleString()}<span className="text-[10px] font-bold text-slate-500 ml-0.5">đ</span>
-                  </h1>
+                  <h1 className="text-xl font-black text-white tracking-tighter">{total.toLocaleString()}<span className="text-[10px] font-bold text-slate-500 ml-0.5">đ</span></h1>
                </div>
-               
                {paymentMethod === 'cash' ? (
                  <div className="space-y-2 w-full">
                     <div className="bg-white p-3 rounded-[16px] border border-slate-100 focus-within:border-indigo-600 transition-all shadow-inner">
                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Tiền khách đưa</label>
-                       <input 
-                         type="text" 
-                         inputMode="numeric"
-                         pattern="[0-9]*"
-                         className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 outline-none placeholder:text-slate-200" 
-                         autoFocus
-                         placeholder="0"
-                         value={cashReceived ? parseNumber(cashReceived).toLocaleString() : ''} 
-                         onChange={(e) => setCashReceived(e.target.value.replace(/\D/g, ''))} 
-                    />
+                       <input type="text" inputMode="numeric" pattern="[0-9]*" className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-900 focus:ring-0 outline-none placeholder:text-slate-200" autoFocus placeholder="0" value={cashReceived ? parseNumber(cashReceived).toLocaleString() : ''} onChange={(e) => setCashReceived(e.target.value.replace(/\D/g, ''))} />
                     </div>
                     <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-[16px] border border-emerald-100">
                         <span className="text-[8px] font-black uppercase tracking-widest text-emerald-800 italic">Tiền trả lại</span>
-                        <span className="text-lg font-black text-emerald-600">
-                           {Math.max(0, (parseNumber(cashReceived) || 0) - total).toLocaleString()}đ
-                        </span>
+                        <span className="text-lg font-black text-emerald-600">{Math.max(0, (parseNumber(cashReceived) || 0) - total).toLocaleString()}đ</span>
                     </div>
                  </div>
                ) : (
                   <div className="space-y-2 w-full flex flex-col items-center">
                      <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-inner relative flex items-center justify-center overflow-hidden w-full">
-                        <img 
-                          src={getQrUrl()} 
-                          alt="VietQR" 
-                          className="w-auto max-w-full h-auto max-h-[340px] md:max-h-[380px] object-contain animate-in fade-in zoom-in-95 duration-500" 
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-white/40 backdrop-blur-[1px] pointer-events-none">
-                           <Loader2 className="text-indigo-600 animate-spin" size={24} />
-                        </div>
+                        <img src={getQrUrl()} alt="VietQR" className="w-auto max-w-full h-auto max-h-[340px] md:max-h-[380px] object-contain animate-in fade-in zoom-in-95 duration-500" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-white/40 backdrop-blur-[1px] pointer-events-none"><Loader2 className="text-indigo-600 animate-spin" size={24} /></div>
                      </div>
                      <div className="text-center space-y-0.5">
                         <p className="text-[9px] font-black text-slate-800 uppercase tracking-widest">{storeConfig.bankId} - {storeConfig.bankAccount}</p>
                         <p className="text-[8px] text-slate-500 font-bold uppercase">{storeConfig.bankAccountName}</p>
-                        <div className="flex items-center justify-center space-x-1.5 text-[8px] font-black text-emerald-600 bg-emerald-50 py-1 px-4 rounded-lg border border-emerald-100 mt-1">
-                           <CheckCircle size={10} />
-                           <span className="uppercase tracking-widest">Đang chờ quét mã...</span>
-                        </div>
+                        <div className="flex items-center justify-center space-x-1.5 text-[8px] font-black text-emerald-600 bg-emerald-50 py-1 px-4 rounded-lg border border-emerald-100 mt-1"><CheckCircle size={10} /><span className="uppercase tracking-widest">Chờ quét mã...</span></div>
                      </div>
                   </div>
                )}
             </div>
-            
             <div className="p-4 bg-slate-50 border-t border-slate-100 shrink-0">
-               <button onClick={handleCheckout} className="w-full py-3.5 bg-indigo-600 text-white rounded-[16px] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.96] flex items-center justify-center space-x-2">
-                  <CheckCircle size={16} />
-                  <span>XÁC NHẬN ĐÃ THU TIỀN</span>
-               </button>
+               <button onClick={handleCheckout} className="w-full py-3.5 bg-indigo-600 text-white rounded-[16px] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.96] flex items-center justify-center space-x-2"><CheckCircle size={16} /><span>XÁC NHẬN ĐÃ THU</span></button>
             </div>
           </div>
         </div>
@@ -743,45 +592,28 @@ const POS = () => {
                 <div className="space-y-10">
                    <div className="flex items-center space-x-4 text-white">
                       <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20"><CheckCircle size={28} /></div>
-                      <div>
-                         <h2 className="text-sm font-black uppercase tracking-widest leading-none mb-1">THÀNH CÔNG</h2>
-                         <p className="text-[10px] text-slate-400 italic">Đã lưu giao dịch</p>
-                      </div>
+                      <div><h2 className="text-sm font-black uppercase tracking-widest leading-none mb-1">THÀNH CÔNG</h2><p className="text-[10px] text-slate-400 italic">Đã lưu giao dịch</p></div>
                    </div>
                    <div className="space-y-4">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Khổ giấy in</p>
                       <div className="grid grid-cols-3 gap-2">
                          {(['58mm', '80mm', 'A4'] as PrintSize[]).map(size => (
-                           <button key={size} onClick={() => setPrintSize(size)} className={`py-4 rounded-2xl text-[10px] font-black transition-all ${printSize === size ? 'bg-indigo-600 text-white shadow-xl' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>
-                              {size}
-                           </button>
+                           <button key={size} onClick={() => setPrintSize(size)} className={`py-4 rounded-2xl text-[10px] font-black transition-all ${printSize === size ? 'bg-indigo-600 text-white shadow-xl' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{size}</button>
                          ))}
                       </div>
                    </div>
                    <div className="space-y-3">
-                      <button onClick={handlePrint} className="w-full py-5 bg-white text-slate-900 rounded-[28px] font-black text-[12px] uppercase tracking-widest flex items-center justify-center space-x-3 shadow-xl hover:bg-slate-50 transition-all">
-                        <Printer size={20} /> <span>In hóa đơn</span>
-                      </button>
+                      <button onClick={handlePrint} className="w-full py-5 bg-white text-slate-900 rounded-[28px] font-black text-[12px] uppercase tracking-widest flex items-center justify-center space-x-3 shadow-xl hover:bg-slate-50 transition-all"><Printer size={20} /> <span>In hóa đơn</span></button>
                       <div className="grid grid-cols-2 gap-3">
-                        <button onClick={handleExportPDF} className="py-4 bg-slate-700 text-white rounded-[22px] font-black text-[10px] uppercase flex items-center justify-center space-x-2 hover:bg-slate-600 transition-all">
-                          <FileDown size={16} /> <span>PDF</span>
-                        </button>
-                        <button onClick={handleExportJPG} className="py-4 bg-slate-700 text-white rounded-[22px] font-black text-[10px] uppercase flex items-center justify-center space-x-2 hover:bg-slate-600 transition-all">
-                          <FileImage size={16} /> <span>JPG</span>
-                        </button>
+                        <button onClick={handleExportPDF} className="py-4 bg-slate-700 text-white rounded-[22px] font-black text-[10px] uppercase flex items-center justify-center space-x-2 hover:bg-slate-600 transition-all"><FileDown size={16} /> <span>PDF</span></button>
+                        <button onClick={handleExportJPG} className="py-4 bg-slate-700 text-white rounded-[22px] font-black text-[10px] uppercase flex items-center justify-center space-x-2 hover:bg-slate-600 transition-all"><FileImage size={16} /> <span>JPG</span></button>
                       </div>
                 </div>
              </div>
-             <button onClick={resetPOS} className="w-full mt-10 py-5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-[28px] font-black text-[12px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
-                   ĐÓNG & TIẾP TỤC
-                </button>
+             <button onClick={resetPOS} className="w-full mt-10 py-5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-[28px] font-black text-[12px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">ĐÓNG & TIẾP TỤC</button>
              </div>
              <div className="flex-1 bg-slate-900 md:p-10 overflow-y-auto scrollbar-hide flex items-start justify-center p-6">
-                <div id="printable-invoice" ref={invoiceAreaRef} className={`bg-white shadow-2xl transition-all origin-top text-slate-900 font-sans ${
-                  printSize === '58mm' ? 'w-[58mm] p-4 text-[10px]' : 
-                  printSize === '80mm' ? 'w-[80mm] p-6 text-[12px]' : 
-                  'w-[210mm] p-10 min-h-[297mm] text-[14px]'
-                }`} style={{ fontFamily: "'Inter', sans-serif" }}>
+                <div id="printable-invoice" ref={invoiceAreaRef} className={`bg-white shadow-2xl transition-all origin-top text-slate-900 font-sans ${printSize === '58mm' ? 'w-[58mm] p-4 text-[10px]' : printSize === '80mm' ? 'w-[80mm] p-6 text-[12px]' : 'w-[210mm] p-10 min-h-[297mm] text-[14px]'}`} style={{ fontFamily: "'Inter', sans-serif" }}>
                    <div className="text-center space-y-1 border-b-2 border-slate-900 pb-4 mb-4">
                       <h1 className={`${printSize === '58mm' ? 'text-sm' : 'text-xl'} font-black uppercase tracking-tighter leading-none mb-1`}>{storeConfig.name}</h1>
                       <p className="font-bold opacity-80 italic text-[0.85em] leading-tight">{storeConfig.address}</p>
@@ -792,60 +624,22 @@ const POS = () => {
                       <p className="text-[0.8em] font-mono mt-2 opacity-50 uppercase tracking-widest">MÃ: {lastOrder.id}</p>
                    </div>
                    <div className="space-y-1.5 mb-6 text-[0.9em]">
-                      <div className="flex justify-between border-b border-slate-100 pb-1 gap-2">
-                        <span className="shrink-0">Khách hàng:</span> 
-                        <span className="font-black uppercase text-right truncate">{lastOrder.customerName}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-100 pb-1 gap-2">
-                        <span className="shrink-0">Thời gian:</span> 
-                        <span className="text-right whitespace-nowrap">{new Date(lastOrder.updatedAt).toLocaleString('vi-VN')}</span>
-                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1 gap-2"><span className="shrink-0">Khách:</span><span className="font-black uppercase text-right truncate">{lastOrder.customerName}</span></div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1 gap-2"><span className="shrink-0">Giờ:</span><span className="text-right whitespace-nowrap">{new Date(lastOrder.updatedAt).toLocaleString('vi-VN')}</span></div>
                    </div>
                    <table className="w-full mb-6 text-[0.9em]">
-                      <thead className="border-b-2 border-slate-900">
-                         <tr>
-                            <th className="text-left py-2 uppercase font-black">Sản phẩm</th>
-                            <th className="text-center py-2 uppercase font-black px-1">SL</th>
-                            <th className="text-right py-2 uppercase font-black">T.Tiền</th>
-                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                         {lastOrder.items.map((item: any) => (
-                           <tr key={item.id}>
-                              <td className="py-2 font-bold leading-tight align-top pr-1">{item.name}</td>
-                              <td className="py-2 text-center align-top font-bold">{item.qty}</td>
-                              <td className="py-2 text-right font-black tracking-tighter align-top whitespace-nowrap">{item.total.toLocaleString()}đ</td>
-                           </tr>
-                         ))}
-                      </tbody>
+                      <thead className="border-b-2 border-slate-900"><tr><th className="text-left py-2 uppercase font-black">SP</th><th className="text-center py-2 uppercase font-black px-1">SL</th><th className="text-right py-2 uppercase font-black">T.Tiền</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">{lastOrder.items.map((item: any) => (<tr key={item.id}><td className="py-2 font-bold leading-tight align-top pr-1">{item.name}</td><td className="py-2 text-center align-top font-bold">{item.qty}</td><td className="py-2 text-right font-black tracking-tighter align-top whitespace-nowrap">{item.total.toLocaleString()}đ</td></tr>))}</tbody>
                    </table>
                    <div className="space-y-1 pt-4 border-t-2 border-slate-900">
-                      <div className="flex justify-between text-[0.9em] items-baseline gap-2">
-                         <span className="whitespace-nowrap shrink-0">Tạm tính:</span>
-                         <span className="font-bold whitespace-nowrap">{lastOrder.subTotal.toLocaleString()}đ</span>
-                      </div>
-                      {lastOrder.discountAmt > 0 && (
-                        <div className="flex justify-between text-[0.9em] text-rose-600 italic items-baseline gap-2">
-                           <span className="whitespace-nowrap shrink-0">{printSize === '58mm' ? 'C.khấu' : 'Chiết khấu'} {lastOrder.discountType === 'percentage' ? `(${lastOrder.discount}%)` : ''}:</span>
-                           <span className="font-bold whitespace-nowrap">-{lastOrder.discountAmt.toLocaleString()}đ</span>
-                        </div>
-                      )}
-                      <div className={`flex justify-between items-baseline pt-3 border-t border-slate-100 mt-2 font-black uppercase gap-2 ${
-                        printSize === '58mm' ? 'text-[11px]' : 
-                        printSize === '80mm' ? 'text-[13px]' : 
-                        'text-base'
-                      }`}>
-                         <span className="whitespace-nowrap shrink-0">Tổng thanh toán:</span>
-                         <span className={`text-rose-600 tracking-tighter whitespace-nowrap ${
-                           printSize === '58mm' ? 'text-[13px]' : 
-                           printSize === '80mm' ? 'text-base' : 
-                           'text-lg'
-                         }`}>{lastOrder.total.toLocaleString()}đ</span>
+                      <div className="flex justify-between text-[0.9em] items-baseline gap-2"><span className="whitespace-nowrap shrink-0">Tạm tính:</span><span className="font-bold whitespace-nowrap">{lastOrder.subTotal.toLocaleString()}đ</span></div>
+                      {lastOrder.discountAmt > 0 && (<div className="flex justify-between text-[0.9em] text-rose-600 italic items-baseline gap-2"><span className="whitespace-nowrap shrink-0">Chiết khấu:</span><span className="font-bold whitespace-nowrap">-{lastOrder.discountAmt.toLocaleString()}đ</span></div>)}
+                      <div className={`flex justify-between items-baseline pt-3 border-t border-slate-100 mt-2 font-black uppercase gap-2 ${printSize === '58mm' ? 'text-[11px]' : printSize === '80mm' ? 'text-[13px]' : 'text-base'}`}>
+                         <span className="whitespace-nowrap shrink-0">Tổng tiền:</span>
+                         <span className={`text-rose-600 tracking-tighter whitespace-nowrap ${printSize === '58mm' ? 'text-[13px]' : printSize === '80mm' ? 'text-base' : 'text-lg'}`}>{lastOrder.total.toLocaleString()}đ</span>
                       </div>
                    </div>
-                   <div className="mt-12 text-center border-t border-dashed border-slate-300 pt-6 space-y-2">
-                      <p className="font-black italic uppercase text-[0.9em] tracking-widest leading-none">CẢM ƠN QUÝ KHÁCH HÀNG!</p>
-                   </div>
+                   <div className="mt-12 text-center border-t border-dashed border-slate-300 pt-6 space-y-2"><p className="font-black italic uppercase text-[0.9em] tracking-widest leading-none">CẢM ƠN QUÝ KHÁCH!</p></div>
                 </div>
              </div>
           </div>

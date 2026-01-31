@@ -53,14 +53,13 @@ export const useSync = () => {
       };
       
       setUnsyncedCount(counts);
-      return Object.values(counts).reduce((a, b) => a + b, 0);
+      return Object.values(counts).reduce((a, b) => (a as number) + (b as number), 0);
     } catch (err) {
       return 0;
     }
   }, [setUnsyncedCount]);
 
-  // Hàm kiểm tra xem các quan hệ của bản ghi đã được đồng bộ lên server chưa
-  const checkDependenciesSynced = async (tableName: string, item: any) => {
+  const checkDependenciesSynced = useCallback(async (tableName: string, item: any) => {
     const deps: Record<string, { table: any, field: string }[]> = {
       'products': [{ table: db.productGroups, field: 'groupId' }],
       'customers': [{ table: db.priceTypes, field: 'typeId' }],
@@ -76,21 +75,22 @@ export const useSync = () => {
 
     for (const d of config) {
       const depId = item[d.field];
-      if (!depId || depId === 'walk-in') continue; // Bỏ qua khách lẻ hoặc giá trị trống
+      if (!depId || depId === 'walk-in') continue;
 
       const parentRecord = await d.table.get(depId);
-      // Nếu không tìm thấy hoặc chưa đồng bộ (synced === 0)
       if (!parentRecord || parentRecord.synced === 0) {
         return false;
       }
     }
     return true;
-  };
+  }, []);
 
-  const syncCollection = async (tableName: string, collectionName: string) => {
-    if (!backendUrl) return;
+  const syncCollection = useCallback(async (tableName: string, collectionName: string, currentLastSync: number | null): Promise<boolean> => {
+    if (!backendUrl) return false;
     const table = (db as any)[tableName];
+    let hasChanges = false;
     
+    // 1. PUSH LOCAL TO REMOTE
     const allLocalUnsynced = await table.where('synced').equals(0).toArray();
     for (const item of allLocalUnsynced) {
       try {
@@ -100,15 +100,14 @@ export const useSync = () => {
           const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, { method: 'DELETE' });
           if (deleteResp.ok || deleteResp.status === 404) {
             await table.delete(localId);
+            hasChanges = true;
           }
           continue;
         }
 
-        // --- KIỂM TRA ĐỊNH DẠNG ID VÀ PHỤ THUỘC ---
         const cleanPayload: any = {};
         let hasInvalidRelation = false;
 
-        // 1. Kiểm tra độ dài ID relation (PocketBase yêu cầu 15 ký tự)
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
           if (['priceTypeId', 'productId', 'customerId', 'groupId', 'typeId'].includes(key)) {
@@ -119,17 +118,10 @@ export const useSync = () => {
           if (value !== "") cleanPayload[key] = value;
         });
 
-        if (hasInvalidRelation) {
-           console.warn(`Sync Warning: Record in ${tableName} has legacy ID. Waiting for migration.`, localId);
-           continue;
-        }
+        if (hasInvalidRelation) continue;
 
-        // 2. Kiểm tra xem cha đã lên server chưa (Tránh lỗi 400 productId validation)
         const isReady = await checkDependenciesSynced(tableName, item);
-        if (!isReady) {
-          console.debug(`Sync: Skipping ${collectionName}/${localId} because parent is not synced yet.`);
-          continue; 
-        }
+        if (!isReady) continue; 
 
         const checkResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`);
         const exists = checkResp.ok;
@@ -149,24 +141,17 @@ export const useSync = () => {
 
         if (response.ok) {
           await table.update(localId, { synced: 1 });
-        } else {
-          const errData = await response.json();
-          // Nếu server báo lỗi relation (400), đánh dấu record này cần xử lý lại sau
-          console.group(`Sync Error 400: ${collectionName}`);
-          console.error("Message:", errData.message);
-          console.error("Validation:", errData.data);
-          console.log("Payload:", body);
-          console.groupEnd();
+          hasChanges = true;
         }
       } catch (err) {
-        console.error(`Network Error for ${collectionName}:`, err);
+        console.error(`Push Error for ${collectionName}:`, err);
       }
     }
 
-    // PULL DATA FROM SERVER
+    // 2. PULL REMOTE TO LOCAL
     try {
-      const lastSyncISO = lastSync 
-        ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] 
+      const lastSyncISO = currentLastSync 
+        ? new Date(currentLastSync).toISOString().replace('T', ' ').split('.')[0] 
         : '2000-01-01 00:00:00';
       
       const pullUrl = `${backendUrl}/api/collections/${collectionName}/records?filter=(updated > "${lastSyncISO}")&perPage=500`;
@@ -174,62 +159,73 @@ export const useSync = () => {
       
       if (resp.ok) {
         const result = await resp.json();
-        for (const record of result.items) {
-          const local = await table.get(record.id);
-          const remoteTs = new Date(record.updated).getTime();
-          
-          if (!local || remoteTs > (local.updatedAt || 0)) {
-            await table.put({ 
-              ...record, 
-              synced: 1, 
-              deleted: 0, 
-              updatedAt: remoteTs,
-              createdAt: record.created ? new Date(record.created).getTime() : Date.now()
-            });
+        if (result.items.length > 0) {
+          for (const record of result.items) {
+            const local = await table.get(record.id);
+            const remoteTs = new Date(record.updated).getTime();
+            
+            if (!local || remoteTs > (local.updatedAt || 0)) {
+              await table.put({ 
+                ...record, 
+                synced: 1, 
+                deleted: 0, 
+                updatedAt: remoteTs,
+                createdAt: record.created ? new Date(record.created).getTime() : Date.now()
+              });
+              hasChanges = true;
+            }
           }
         }
       }
     } catch (err) {
       console.error(`Pull failed for ${collectionName}:`, err);
     }
-  };
+    
+    return hasChanges;
+  }, [backendUrl, checkDependenciesSynced]);
 
-  const syncData = async () => {
+  const syncData = useCallback(async () => {
     if (isSyncing || !backendUrl) return;
     const isOnline = await checkServerHealth();
     if (!isOnline) return;
 
     setIsSyncing(true);
+    let anyCollectionChanged = false;
     try {
-      // THỰC HIỆN ĐỒNG BỘ THEO THỨ TỰ CÂY PHỤ THUỘC (Top-Down)
-      // Level 0: Không phụ thuộc
-      await syncCollection('priceTypes', 'price_types');
-      await syncCollection('productGroups', 'product_groups');
-      await syncCollection('users', 'profiles');
-      
-      // Level 1: Phụ thuộc vào Level 0
-      await syncCollection('products', 'products');
-      await syncCollection('customers', 'customers');
-      
-      // Level 2: Phụ thuộc vào Level 1
-      await syncCollection('productPrices', 'product_prices');
-      await syncCollection('orders', 'orders');
-      await syncCollection('purchases', 'purchases');
+      const collections = [
+        { t: 'priceTypes', c: 'price_types' },
+        { t: 'productGroups', c: 'product_groups' },
+        { t: 'users', c: 'profiles' },
+        { t: 'products', c: 'products' },
+        { t: 'customers', c: 'customers' },
+        { t: 'productPrices', c: 'product_prices' },
+        { t: 'orders', c: 'orders' },
+        { t: 'purchases', c: 'purchases' }
+      ];
+
+      for (const col of collections) {
+        const changed = await syncCollection(col.t, col.c, lastSync);
+        if (changed) anyCollectionChanged = true;
+      }
 
       const now = Date.now();
       setLastSync(now);
       localStorage.setItem('last_sync_ts', now.toString());
+      
       await checkUnsynced();
-      // Không gọi fetchInitialData ở đây để tránh loop re-render nặng, 
-      // component nào cần sẽ tự phản ứng với DB change (nếu dùng Dexie hook) hoặc manual refresh
+      
+      if (anyCollectionChanged) {
+        await fetchInitialData();
+      }
     } catch (error) {
       console.error('Critical Sync Failure:', error);
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [isSyncing, backendUrl, lastSync, checkServerHealth, syncCollection, checkUnsynced, fetchInitialData]);
 
   useEffect(() => {
+    // Chỉ chạy lần đầu khi component mount hoặc backendUrl thay đổi
     checkUnsynced();
     checkServerHealth();
 
@@ -237,22 +233,19 @@ export const useSync = () => {
       checkUnsynced();
     }, 5000);
 
-    syncTimerRef.current = setInterval(async () => {
-      const online = await checkServerHealth();
-      if (online) {
-        const count = await checkUnsynced();
-        if (count > 0) await syncData();
-      }
-    }, 60000); 
+    syncTimerRef.current = setInterval(() => {
+      // Gọi trực tiếp syncData mà không cần checkServerHealth ở đây vì syncData đã có check rồi
+      syncData();
+    }, 20000); 
 
     return () => {
-      clearInterval(syncTimerRef.current);
-      clearInterval(countTimerRef.current);
+      if (syncTimerRef.current) clearInterval(syncTimerRef.current);
+      if (countTimerRef.current) clearInterval(countTimerRef.current);
     };
-  }, [checkServerHealth, checkUnsynced, backendUrl]);
+  }, [checkServerHealth, checkUnsynced, syncData]); // dependencies giờ đã ổn định nhờ useCallback
 
   return { 
     syncData, isSyncing, isServerOnline, lastSync, unsyncedCount, checkUnsynced,
-    totalUnsynced: (Object.values(unsyncedCount) as number[]).reduce((a, b) => a + b, 0)
+    totalUnsynced: (Object.values(unsyncedCount) as number[]).reduce((a, b) => (a as number) + (b as number), 0)
   };
 };

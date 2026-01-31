@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { useStore } from '../store';
-import { Search, FileText, Calendar, User, CreditCard, Trash2, Eye, ShoppingBag, X, AlertTriangle, ReceiptText, Tag, ArrowUpRight, ArrowDownLeft, Store, ChevronRight, CloudOff } from 'lucide-react';
+import { Search, FileText, Calendar, User, CreditCard, Trash2, Eye, ShoppingBag, X, AlertTriangle, ReceiptText, Tag, ArrowUpRight, ArrowDownLeft, Store, ChevronRight, CloudOff, Package } from 'lucide-react';
 import { Order, Purchase } from '../types';
 
 const ConfirmDialog = ({ title, message, onConfirm, onCancel }: any) => (
@@ -37,11 +37,9 @@ const OrderHistory = () => {
   }, []);
 
   const loadData = async () => {
-    // Chỉ lấy các bản ghi chưa bị đánh dấu xóa (deleted === 0)
     const ordersData = await db.orders.where('deleted').equals(0).toArray();
     const purchasesData = await db.purchases.where('deleted').equals(0).toArray();
     
-    // Sắp xếp thủ công theo thời gian mới nhất
     setOrders(ordersData.sort((a, b) => b.updatedAt - a.updatedAt));
     setPurchases(purchasesData.sort((a, b) => b.updatedAt - a.updatedAt));
   };
@@ -119,7 +117,6 @@ const OrderHistory = () => {
         />
       </div>
 
-      {/* Giao diện Desktop (Table) - Ẩn trên Mobile */}
       <div className="hidden md:block bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto scrollbar-hide">
           <table className="w-full text-left border-collapse">
@@ -185,7 +182,6 @@ const OrderHistory = () => {
         </div>
       </div>
 
-      {/* Giao diện Mobile (Card-List) - Chỉ hiện trên Mobile */}
       <div className="md:hidden space-y-3">
         {items.map((item: any) => (
           <div key={item.id} className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm active:scale-[0.98] transition-all">
@@ -230,13 +226,12 @@ const OrderHistory = () => {
       </div>
 
       {items.length === 0 && (
-        <div className="py-24 flex flex-col items-center justify-center opacity-30 italic">
-            <ShoppingBag size={80} strokeWidth={1} className="mb-4 text-slate-300" />
+        <div className="py-24 text-center opacity-30 italic">
+            <ShoppingBag size={80} strokeWidth={1} className="mb-4 text-slate-300 mx-auto" />
             <p className="text-xs font-black uppercase tracking-[0.4em]">Không có dữ liệu</p>
         </div>
       )}
 
-      {/* Chi tiết đơn hàng */}
       {(selectedOrder || selectedPurchase) && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 md:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
           <div className="bg-white w-full max-w-2xl rounded-none md:rounded-[48px] shadow-3xl flex flex-col h-full md:h-auto max-h-[100vh] md:max-h-[92vh] overflow-hidden">
@@ -281,21 +276,28 @@ const OrderHistory = () => {
                      </span>
                   </div>
                   <div className="divide-y divide-slate-50 border border-slate-50 rounded-[32px] overflow-hidden bg-white">
-                    {(selectedOrder?.items || selectedPurchase?.items || []).map((item: any) => (
-                      <div key={item.id} className="p-5 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                        <div className="min-w-0 flex-1 pr-4">
-                          <p className="font-bold text-slate-800 text-sm truncate leading-tight">
-                            {selectedOrder ? (products.find(p => p.id === item.productId)?.name || 'N/A') : item.name}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-tight">
-                            {(item.price || item.cost).toLocaleString()}đ x {item.qty}
-                          </p>
+                    {(selectedOrder?.items || selectedPurchase?.items || []).map((item: any) => {
+                      const pInfo = products.find(p => p.id === item.productId);
+                      return (
+                      <div key={item.id} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center space-x-4 min-w-0 flex-1">
+                           <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                             {pInfo?.image ? <img src={pInfo.image} className="w-full h-full object-cover" /> : <Package size={20} className="text-slate-300" />}
+                           </div>
+                           <div className="min-w-0 flex-1">
+                             <p className="font-bold text-slate-800 text-sm truncate leading-tight">
+                               {selectedOrder ? (pInfo?.name || 'N/A') : item.name}
+                             </p>
+                             <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-tight">
+                               {(item.price || item.cost).toLocaleString()}đ x {item.qty}
+                             </p>
+                           </div>
                         </div>
-                        <div className="text-right shrink-0">
+                        <div className="text-right shrink-0 ml-4">
                            <p className="font-black text-slate-900 text-sm">{item.total.toLocaleString()}đ</p>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                </div>
             </div>

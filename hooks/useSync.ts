@@ -138,8 +138,14 @@ export const useSync = () => {
           }
 
           if (value !== undefined && value !== null && value !== "") {
-            cleanPayload[key] = value;
-            // Phát hiện trường hình ảnh Base64
+            // Nếu là URL đầy đủ từ PocketBase, chỉ lấy tên file để push ngược lên (PocketBase sẽ tự hiểu)
+            if (key === 'image' && typeof value === 'string' && value.includes('/api/files/')) {
+               cleanPayload[key] = value.split('/').pop();
+            } else {
+               cleanPayload[key] = value;
+            }
+            
+            // Phát hiện trường hình ảnh Base64 mới để push file
             if (key === 'image' && typeof value === 'string' && value.startsWith('data:image')) {
               containsFile = true;
             }
@@ -167,7 +173,6 @@ export const useSync = () => {
         };
 
         if (containsFile) {
-          // Sử dụng FormData nếu có file
           const formData = new FormData();
           if (method === 'POST') formData.append('id', localId);
           
@@ -182,9 +187,7 @@ export const useSync = () => {
             }
           });
           requestOptions.body = formData;
-          // Note: Browser tự động set Content-Type: multipart/form-data khi dùng FormData
         } else {
-          // Sử dụng JSON thông thường
           requestOptions.headers = { 'Content-Type': 'application/json' };
           requestOptions.body = JSON.stringify(method === 'POST' ? { id: localId, ...cleanPayload } : cleanPayload);
         }
@@ -225,10 +228,11 @@ export const useSync = () => {
             const remoteTs = new Date(record.updated).getTime();
             
             if (!local || remoteTs > (local.updatedAt || 0)) {
-              // Xử lý URL ảnh từ PocketBase nếu cần
               const processedRecord = { ...record };
-              if (record.image && !record.image.startsWith('data:')) {
-                // Để đơn giản, ta giữ nguyên tên file. UI sẽ tự ghép URL server nếu cần.
+              
+              // TỰ ĐỘNG XỬ LÝ URL ẢNH TỪ POCKETBASE
+              if (record.image && !record.image.startsWith('data:') && !record.image.startsWith('http')) {
+                processedRecord.image = `${backendUrl}/api/files/${collectionName}/${record.id}/${record.image}`;
               }
 
               await table.put({ 
@@ -236,7 +240,7 @@ export const useSync = () => {
                 synced: 1, 
                 deleted: 0, 
                 updatedAt: remoteTs,
-                createdAt: record.created ? new Date(record.created).getTime() : Date.now()
+                createdAt: record.created ? new Date(record.created).getTime() : (local?.createdAt || Date.now())
               });
               hasChanges = true;
             }

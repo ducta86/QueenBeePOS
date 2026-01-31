@@ -293,7 +293,8 @@ const ProductManager = () => {
     return numericValue ? Number(numericValue).toLocaleString('vi-VN') : "";
   };
 
-  const parseCurrencyInput = (value: string) => {
+  const parseCurrencyInput = (value: string | number) => {
+    if (typeof value === 'number') return value;
     return Number(value.replace(/\D/g, ""));
   };
 
@@ -440,7 +441,6 @@ const ProductManager = () => {
     if (!formData.unit.trim()) return "Vui lòng nhập đơn vị tính.";
     if (!formData.groupId) return "Vui lòng chọn nhóm sản phẩm.";
     
-    // Kiểm tra không cho để trống bất kỳ loại giá bán nào
     for (const pt of priceTypes) {
       const priceVal = prices[pt.id];
       if (priceVal === undefined || priceVal === null || String(priceVal).trim() === "") {
@@ -456,7 +456,6 @@ const ProductManager = () => {
     const errorMsg = validate();
     if (errorMsg) {
       setLocalError(errorMsg);
-      // Cuộn lên đầu form hoặc vị trí thông báo nếu cần, hoặc đơn giản là để useEffect/state lo
       return;
     }
 
@@ -578,13 +577,13 @@ const ProductManager = () => {
         </div>
       </div>
 
-      <div className="bg-white p-3 rounded-[32px] border border-slate-100 shadow-sm sticky top-16 z-20">
+      <div className="bg-white p-3 rounded-[32px] border border-slate-100 shadow-sm">
         <div className="relative group flex items-center">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
             placeholder="Tìm theo tên, mã SKU hoặc barcode..." 
-            className="w-full pl-11 pr-14 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold transition-all"
+            className="w-full pl-11 pr-14 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-50 outline-none text-sm font-bold transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />

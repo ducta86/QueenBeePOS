@@ -460,10 +460,17 @@ const POS = () => {
                     return (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                        <td className="px-3 md:px-6 py-4">
-                          <p className="text-xs md:text-sm font-bold text-slate-800 leading-tight">{item.name}</p>
-                          <div className="flex items-center flex-wrap gap-x-2 mt-1">
-                            <span className="text-[9px] text-slate-500 font-bold md:hidden">{item.price.toLocaleString()}đ</span>
-                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${getStockColor(pInfo?.stock || 0)}`}>Tồn: {pInfo?.stock || 0}</span>
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                              {pInfo?.image ? <img src={pInfo.image} className="w-full h-full object-cover" /> : <Package size={20} className="text-slate-300" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                               <p className="text-xs md:text-sm font-bold text-slate-800 leading-tight truncate md:whitespace-normal">{item.name}</p>
+                               <div className="flex items-center flex-wrap gap-x-2 mt-1">
+                                 <span className="text-[9px] text-slate-500 font-bold md:hidden">{item.price.toLocaleString()}đ</span>
+                                 <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${getStockColor(pInfo?.stock || 0)}`}>Tồn: {pInfo?.stock || 0}</span>
+                               </div>
+                            </div>
                           </div>
                        </td>
                        <td className="px-2 md:px-6 py-4">

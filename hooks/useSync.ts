@@ -87,10 +87,10 @@ export const useSync = () => {
 
   const syncCollection = async (tableName: string, collectionName: string): Promise<boolean> => {
     if (!backendUrl) return false;
-    let hasChanges = false;
     const table = (db as any)[tableName];
+    let hasChanged = false;
     
-    // 1. PUSH LOCAL CHANGES TO SERVER
+    // 1. PUSH LOCAL TO REMOTE
     const allLocalUnsynced = await table.where('synced').equals(0).toArray();
     for (const item of allLocalUnsynced) {
       try {
@@ -100,7 +100,7 @@ export const useSync = () => {
           const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, { method: 'DELETE' });
           if (deleteResp.ok || deleteResp.status === 404) {
             await table.delete(localId);
-            hasChanges = true;
+            hasChanged = true;
           }
           continue;
         }
@@ -141,14 +141,14 @@ export const useSync = () => {
 
         if (response.ok) {
           await table.update(localId, { synced: 1 });
-          hasChanges = true;
+          hasChanged = true;
         }
       } catch (err) {
-        console.error(`Push Error for ${collectionName}:`, err);
+        console.error(`Push error for ${collectionName}:`, err);
       }
     }
 
-    // 2. PULL REMOTE CHANGES FROM SERVER
+    // 2. PULL REMOTE TO LOCAL
     try {
       const lastSyncISO = lastSync 
         ? new Date(lastSync).toISOString().replace('T', ' ').split('.')[0] 
@@ -159,29 +159,27 @@ export const useSync = () => {
       
       if (resp.ok) {
         const result = await resp.json();
-        if (result.items.length > 0) {
-          for (const record of result.items) {
-            const local = await table.get(record.id);
-            const remoteTs = new Date(record.updated).getTime();
-            
-            if (!local || remoteTs > (local.updatedAt || 0)) {
-              await table.put({ 
-                ...record, 
-                synced: 1, 
-                deleted: 0, 
-                updatedAt: remoteTs,
-                createdAt: record.created ? new Date(record.created).getTime() : Date.now()
-              });
-              hasChanges = true;
-            }
+        for (const record of result.items) {
+          const local = await table.get(record.id);
+          const remoteTs = new Date(record.updated).getTime();
+          
+          if (!local || remoteTs > (local.updatedAt || 0)) {
+            await table.put({ 
+              ...record, 
+              synced: 1, 
+              deleted: 0, 
+              updatedAt: remoteTs,
+              createdAt: record.created ? new Date(record.created).getTime() : Date.now()
+            });
+            hasChanged = true;
           }
         }
       }
     } catch (err) {
-      console.error(`Pull Error for ${collectionName}:`, err);
+      console.error(`Pull failed for ${collectionName}:`, err);
     }
     
-    return hasChanges;
+    return hasChanged;
   };
 
   const syncData = async () => {
@@ -192,7 +190,6 @@ export const useSync = () => {
     setIsSyncing(true);
     let anyCollectionChanged = false;
     try {
-      // ĐỒNG BỘ THEO THỨ TỰ CHA-CON
       const collections = [
         { t: 'priceTypes', c: 'price_types' },
         { t: 'productGroups', c: 'product_groups' },
@@ -212,11 +209,10 @@ export const useSync = () => {
       const now = Date.now();
       setLastSync(now);
       localStorage.setItem('last_sync_ts', now.toString());
-      
       await checkUnsynced();
       
-      // CRITICAL: Nếu có bất kỳ thay đổi nào (đẩy lên thành công hoặc kéo về thành công), 
-      // cập nhật lại Store để giao diện phản ứng ngay lập tức.
+      // Nếu có bất kỳ thay đổi nào từ phía DB (đẩy lên thành công hoặc kéo dữ liệu mới về)
+      // thì phải làm mới State của ứng dụng để giao diện cập nhật ngay lập tức.
       if (anyCollectionChanged) {
         await fetchInitialData();
       }
@@ -231,16 +227,16 @@ export const useSync = () => {
     checkUnsynced();
     checkServerHealth();
 
-    // Kiểm tra số lượng chưa đồng bộ mỗi 3 giây
+    // Kiểm tra số lượng chưa đồng bộ thường xuyên hơn (3s)
     countTimerRef.current = setInterval(() => {
       checkUnsynced();
     }, 3000);
 
-    // Tự động đồng bộ mỗi 20 giây (nhanh hơn 60s cũ để máy khác thấy dữ liệu nhanh hơn)
+    // Tự động đồng bộ thường xuyên hơn (20s) để các máy khác thấy dữ liệu nhanh hơn
     syncTimerRef.current = setInterval(async () => {
       const online = await checkServerHealth();
       if (online) {
-        // Luôn chạy syncData để kiểm tra xem có dữ liệu mới từ máy khác (Pull) hay không
+        // Luôn chạy syncData để Pull dữ liệu mới từ máy khác về nếu có
         await syncData();
       }
     }, 20000); 

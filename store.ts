@@ -223,18 +223,37 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateProduct: async (product, prices) => {
     await (db as Dexie).transaction('rw', [db.products, db.productPrices], async () => {
+      // Cập nhật thông tin sản phẩm
       await db.products.put({ ...product, synced: 0, updatedAt: Date.now() });
-      await db.productPrices.where('productId').equals(product.id).delete();
-      const priceRecords: ProductPrice[] = prices.map(p => ({
-        id: generateId(),
-        productId: product.id,
-        priceTypeId: p.priceTypeId,
-        price: p.price,
-        updatedAt: Date.now(),
-        synced: 0,
-        deleted: 0
-      }));
-      await db.productPrices.bulkAdd(priceRecords);
+      
+      // Lấy các bản ghi giá hiện tại của sản phẩm này
+      const currentProductPrices = await db.productPrices.where('productId').equals(product.id).toArray();
+      
+      for (const p of prices) {
+        // Tìm bản ghi giá cũ tương ứng với priceTypeId này
+        const existingPrice = currentProductPrices.find(ep => ep.priceTypeId === p.priceTypeId);
+        
+        if (existingPrice) {
+          // Nếu đã tồn tại: CẬP NHẬT (Giữ nguyên ID cũ để PocketBase hiểu là lệnh PATCH)
+          await db.productPrices.update(existingPrice.id, {
+            price: p.price,
+            updatedAt: Date.now(),
+            synced: 0,
+            deleted: 0
+          });
+        } else {
+          // Nếu chưa tồn tại (trường hợp mới thêm loại giá): THÊM MỚI
+          await db.productPrices.add({
+            id: generateId(),
+            productId: product.id,
+            priceTypeId: p.priceTypeId,
+            price: p.price,
+            updatedAt: Date.now(),
+            synced: 0,
+            deleted: 0
+          });
+        }
+      }
     });
     const products = await db.products.where('deleted').equals(0).toArray();
     set({ products });
@@ -279,18 +298,13 @@ export const useStore = create<AppState>((set, get) => ({
   deletePriceType: async (id) => {
     const config = get().storeConfig;
     
-    // 1. Kiểm tra Giá vốn hệ thống (Thủ phạm chính)
     if (config.costPriceTypeId === id) {
       set({ error: "LỖI: Loại giá này đang được chọn làm 'GIÁ NHẬP KHO' trong phần Cài đặt > Gian hàng. Vui lòng đổi Giá vốn sang loại khác trước khi xóa." });
       setTimeout(() => set({ error: null }), 5000);
       throw new Error("Deletion blocked by system config");
     }
 
-    // 2. Lấy danh sách sản phẩm và khách hàng ĐANG HOẠT ĐỘNG
-    // Chỉ chặn nếu có bản ghi thực sự chưa bị xóa (deleted === 0)
     const activeCustomers = await db.customers.where('typeId').equals(id).filter(c => c.deleted === 0).toArray();
-    
-    // Kiểm tra ProductPrices có giá trị > 0 của những Sản phẩm ĐANG HOẠT ĐỘNG
     const activeProductPrices = await db.productPrices.where('priceTypeId').equals(id).filter(pp => pp.price > 0 && pp.deleted === 0).toArray();
     
     const blockers = [];
@@ -303,11 +317,8 @@ export const useStore = create<AppState>((set, get) => ({
       throw new Error("Deletion blocked by active references");
     }
 
-    // 3. Nếu mọi thứ đã dọn dẹp xong, thực hiện xóa (Soft delete)
     await (db as Dexie).transaction('rw', [db.priceTypes, db.productPrices], async () => {
-      // Đánh dấu xóa loại giá
       await db.priceTypes.update(id, { deleted: 1, updatedAt: Date.now(), synced: 0 });
-      // Đánh dấu xóa toàn bộ bảng giá liên quan để dọn dẹp DB
       await db.productPrices.where('priceTypeId').equals(id).modify({ deleted: 1, updatedAt: Date.now(), synced: 0 });
     });
 

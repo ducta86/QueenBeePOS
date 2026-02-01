@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../db';
 import { useStore } from '../store';
 
-// Helper to convert Base64/DataURL to Blob for File Upload
 const dataURLtoBlob = (dataurl: string) => {
   try {
     const arr = dataurl.split(',');
@@ -30,6 +29,7 @@ export const useSync = () => {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isServerOnline, setIsServerOnline] = useState(false);
+  const [pulledCounts, setPulledCounts] = useState<Record<string, number>>({});
   const [lastSync, setLastSync] = useState<number | null>(
     Number(localStorage.getItem('last_sync_ts')) || null
   );
@@ -104,10 +104,11 @@ export const useSync = () => {
     return true;
   }, []);
 
-  const syncCollection = useCallback(async (tableName: string, collectionName: string, currentLastSync: number | null): Promise<boolean> => {
-    if (!backendUrl) return false;
+  const syncCollection = useCallback(async (tableName: string, collectionName: string, currentLastSync: number | null): Promise<{ pushed: boolean, pulled: number }> => {
+    if (!backendUrl) return { pushed: false, pulled: 0 };
     const table = (db as any)[tableName];
-    let hasChanges = false;
+    let hasPushed = false;
+    let pullCount = 0;
     
     // 1. PUSH LOCAL TO REMOTE
     const allLocalUnsynced = await table.where('synced').equals(0).toArray();
@@ -119,7 +120,7 @@ export const useSync = () => {
           const deleteResp = await fetch(`${backendUrl}/api/collections/${collectionName}/records/${localId}`, { method: 'DELETE' });
           if (deleteResp.ok || deleteResp.status === 404) {
             await table.delete(localId);
-            hasChanges = true;
+            hasPushed = true;
           }
           continue;
         }
@@ -130,25 +131,17 @@ export const useSync = () => {
 
         Object.keys(rawPayload).forEach(key => {
           const value = rawPayload[key];
-          
           if (['groupId', 'typeId', 'productId', 'priceTypeId', 'customerId'].includes(key)) {
-             if (value && String(value).length !== 15 && value !== 'walk-in') {
-                skipPush = true;
-             }
+             if (value && String(value).length !== 15 && value !== 'walk-in') skipPush = true;
           }
 
           if (value !== undefined && value !== null && value !== "") {
-            // Nếu là URL đầy đủ từ PocketBase, chỉ lấy tên file để push ngược lên (PocketBase sẽ tự hiểu)
             if (key === 'image' && typeof value === 'string' && value.includes('/api/files/')) {
                cleanPayload[key] = value.split('/').pop();
             } else {
                cleanPayload[key] = value;
             }
-            
-            // Phát hiện trường hình ảnh Base64 mới để push file
-            if (key === 'image' && typeof value === 'string' && value.startsWith('data:image')) {
-              containsFile = true;
-            }
+            if (key === 'image' && typeof value === 'string' && value.startsWith('data:image')) containsFile = true;
           } else if (typeof value === 'number' || typeof value === 'boolean') {
             cleanPayload[key] = value;
           }
@@ -167,21 +160,15 @@ export const useSync = () => {
           : `${backendUrl}/api/collections/${collectionName}/records`;
         
         const method = exists ? 'PATCH' : 'POST';
-        
-        let requestOptions: RequestInit = {
-          method,
-        };
+        let requestOptions: RequestInit = { method };
 
         if (containsFile) {
           const formData = new FormData();
           if (method === 'POST') formData.append('id', localId);
-          
           Object.keys(cleanPayload).forEach(key => {
             if (key === 'image' && cleanPayload[key].startsWith('data:image')) {
               const blob = dataURLtoBlob(cleanPayload[key]);
-              if (blob) {
-                formData.append(key, blob, `image_${localId}.png`);
-              }
+              if (blob) formData.append(key, blob, `image_${localId}.png`);
             } else {
               formData.append(key, String(cleanPayload[key]));
             }
@@ -193,21 +180,12 @@ export const useSync = () => {
         }
 
         const response = await fetch(url, requestOptions);
-
         if (response.ok) {
           await table.update(localId, { synced: 1 });
-          hasChanges = true;
-        } else {
-          const errorInfo = await response.json();
-          console.error(`[PocketBase Error ${response.status}] ${collectionName} fail:`, {
-            id: localId,
-            message: errorInfo.message,
-            validationErrors: errorInfo.data,
-            sentPayload: cleanPayload
-          });
+          hasPushed = true;
         }
       } catch (err) {
-        console.error(`[Sync Push] Lỗi kết nối khi đẩy ${collectionName}:`, err);
+        console.error(`[Sync Push] fail ${collectionName}:`, err);
       }
     }
 
@@ -229,8 +207,6 @@ export const useSync = () => {
             
             if (!local || remoteTs > (local.updatedAt || 0)) {
               const processedRecord = { ...record };
-              
-              // TỰ ĐỘNG XỬ LÝ URL ẢNH TỪ POCKETBASE
               if (record.image && !record.image.startsWith('data:') && !record.image.startsWith('http')) {
                 processedRecord.image = `${backendUrl}/api/files/${collectionName}/${record.id}/${record.image}`;
               }
@@ -242,16 +218,16 @@ export const useSync = () => {
                 updatedAt: remoteTs,
                 createdAt: record.created ? new Date(record.created).getTime() : (local?.createdAt || Date.now())
               });
-              hasChanges = true;
+              pullCount++;
             }
           }
         }
       }
     } catch (err) {
-      console.error(`[Sync Pull] Lỗi tải dữ liệu ${collectionName}:`, err);
+      console.error(`[Sync Pull] fail ${collectionName}:`, err);
     }
     
-    return hasChanges;
+    return { pushed: hasPushed, pulled: pullCount };
   }, [backendUrl, checkDependenciesSynced]);
 
   const syncData = useCallback(async () => {
@@ -260,51 +236,51 @@ export const useSync = () => {
     if (!isOnline) return;
 
     setIsSyncing(true);
-    let anyCollectionChanged = false;
+    let anyChange = false;
+    let newPulledCounts: Record<string, number> = { ...pulledCounts };
+
     try {
       const collections = [
-        { t: 'priceTypes', c: 'price_types' },
-        { t: 'productGroups', c: 'product_groups' },
-        { t: 'users', c: 'profiles' },
-        { t: 'products', c: 'products' },
-        { t: 'customers', c: 'customers' },
-        { t: 'productPrices', c: 'product_prices' },
-        { t: 'orders', c: 'orders' },
-        { t: 'purchases', c: 'purchases' }
+        { t: 'priceTypes', c: 'price_types', key: 'priceTypes' },
+        { t: 'productGroups', c: 'product_groups', key: 'productGroups' },
+        { t: 'users', c: 'profiles', key: 'users' },
+        { t: 'products', c: 'products', key: 'products' },
+        { t: 'customers', c: 'customers', key: 'customers' },
+        { t: 'productPrices', c: 'product_prices', key: 'productPrices' },
+        { t: 'orders', c: 'orders', key: 'orders' },
+        { t: 'purchases', c: 'purchases', key: 'purchases' }
       ];
 
       for (const col of collections) {
-        const changed = await syncCollection(col.t, col.c, lastSync);
-        if (changed) anyCollectionChanged = true;
+        const result = await syncCollection(col.t, col.c, lastSync);
+        if (result.pushed || result.pulled > 0) anyChange = true;
+        if (result.pulled > 0) {
+          // Fix: Explicitly cast to number to avoid unknown type errors and fix operator '+'
+          newPulledCounts[col.key] = (Number(newPulledCounts[col.key]) || 0) + Number(result.pulled);
+        }
       }
 
+      setPulledCounts(newPulledCounts);
       const now = Date.now();
       setLastSync(now);
       localStorage.setItem('last_sync_ts', now.toString());
-      
       await checkUnsynced();
-      
-      if (anyCollectionChanged) {
-        await fetchInitialData();
-      }
+      if (anyChange) await fetchInitialData();
     } catch (error) {
       console.error('Critical Sync Failure:', error);
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, backendUrl, lastSync, checkServerHealth, syncCollection, checkUnsynced, fetchInitialData]);
+  }, [isSyncing, backendUrl, lastSync, checkServerHealth, syncCollection, checkUnsynced, fetchInitialData, pulledCounts]);
+
+  const clearPulledCounts = useCallback(() => setPulledCounts({}), []);
 
   useEffect(() => {
     checkUnsynced();
     checkServerHealth();
 
-    countTimerRef.current = setInterval(() => {
-      checkUnsynced();
-    }, 5000);
-
-    syncTimerRef.current = setInterval(() => {
-      syncData();
-    }, 20000); 
+    countTimerRef.current = setInterval(checkUnsynced, 5000);
+    syncTimerRef.current = setInterval(syncData, 25000); 
 
     return () => {
       if (syncTimerRef.current) clearInterval(syncTimerRef.current);
@@ -312,8 +288,13 @@ export const useSync = () => {
     };
   }, [checkServerHealth, checkUnsynced, syncData]);
 
+  // Fix: Explicitly cast types to number to avoid unknown type errors in consumers like App.tsx
+  const totalPulled = (Object.values(pulledCounts) as number[]).reduce((a, b) => a + b, 0);
+  const totalUnsynced = (Object.values(unsyncedCount) as number[]).reduce((a, b) => a + b, 0);
+
   return { 
     syncData, isSyncing, isServerOnline, lastSync, unsyncedCount, checkUnsynced,
-    totalUnsynced: (Object.values(unsyncedCount) as number[]).reduce((a, b) => (a as number) + (b as number), 0)
+    pulledCounts, clearPulledCounts, totalPulled: totalPulled as number,
+    totalUnsynced: totalUnsynced as number
   };
 };

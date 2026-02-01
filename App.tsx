@@ -5,7 +5,8 @@ import { HashRouter as Router, Routes, Route, Link, useLocation, Navigate } from
 import { 
   LayoutDashboard, Package, Users, ShoppingCart, Settings as SettingsIcon, RefreshCw,
   LogOut, Bell, Menu, CreditCard, FileText, PackagePlus, BarChart3, ChevronDown,
-  User as UserIcon, Loader2, CloudDownload, Users2, DollarSign, Layers, Tags, Check, ChevronRight
+  User as UserIcon, Loader2, CloudDownload, Users2, DollarSign, Layers, Tags, Check, ChevronRight,
+  ArrowDownCircle, ArrowUpCircle
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ProductManager from './components/ProductManager';
@@ -32,7 +33,7 @@ const SidebarItem = React.memo(({ icon: Icon, label, path, active, onClick }: { 
   </Link>
 ));
 
-const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount, syncData, isSyncing, isOnline }: any) => {
+const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount, pulledCounts, totalPulled, syncData, isSyncing, isOnline }: any) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState({ top: 0, right: 0, isMobile: false });
 
@@ -64,14 +65,14 @@ const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount,
   }, [triggerRef, onClose]);
 
   const syncCategories = [
-    { label: 'Sản phẩm', count: Number(unsyncedCount.products || 0), icon: Package, path: '/products' },
-    { label: 'Đơn hàng', count: Number(unsyncedCount.orders || 0), icon: FileText, path: '/orders' },
-    { label: 'Khách hàng', count: Number(unsyncedCount.customers || 0), icon: Users, path: '/customers' },
-    { label: 'Phiếu nhập', count: Number(unsyncedCount.purchases || 0), icon: PackagePlus, path: '/purchase' },
-    { label: 'Bảng giá', count: Number(unsyncedCount.productPrices || 0), icon: DollarSign, path: '/settings' },
-    { label: 'Nhóm hàng', count: Number(unsyncedCount.productGroups || 0), icon: Layers, path: '/settings' },
-    { label: 'Loại giá', count: Number(unsyncedCount.priceTypes || 0), icon: Tags, path: '/settings' },
-    { label: 'Nhân viên', count: Number(unsyncedCount.users || 0), icon: Users2, path: '/settings' }
+    { label: 'Sản phẩm', key: 'products', icon: Package, path: '/products' },
+    { label: 'Đơn hàng', key: 'orders', icon: FileText, path: '/orders' },
+    { label: 'Khách hàng', key: 'customers', icon: Users, path: '/customers' },
+    { label: 'Phiếu nhập', key: 'purchases', icon: PackagePlus, path: '/purchase' },
+    { label: 'Bảng giá', key: 'productPrices', icon: DollarSign, path: '/settings' },
+    { label: 'Nhóm hàng', key: 'productGroups', icon: Layers, path: '/settings' },
+    { label: 'Loại giá', key: 'priceTypes', icon: Tags, path: '/settings' },
+    { label: 'Nhân viên', key: 'users', icon: Users2, path: '/settings' }
   ];
 
   const style: React.CSSProperties = coords.isMobile 
@@ -81,27 +82,48 @@ const SyncPortalDropdown = ({ triggerRef, onClose, totalUnsynced, unsyncedCount,
   return createPortal(
     <div ref={dropdownRef} style={style} className="fixed bg-white rounded-[32px] shadow-3xl border border-slate-100 p-2 z-[999] animate-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
        <div className="px-5 py-4 border-b border-slate-50 bg-slate-50/50 -mx-2 -mt-2 mb-2">
-          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trung tâm dữ liệu</h4>
-          <p className="text-[13px] font-bold text-slate-700">{totalUnsynced > 0 ? `Có ${totalUnsynced} mục chưa lưu` : 'Dữ liệu đã an toàn'}</p>
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Trung tâm dữ liệu</h4>
+          <div className="flex items-center justify-between">
+            <p className="text-[13px] font-bold text-slate-700">
+              {/* Fix: Explicitly cast totalUnsynced and totalPulled to numbers */}
+              {Number(totalUnsynced) > 0 ? `${totalUnsynced} mục chưa lưu` : Number(totalPulled) > 0 ? `${totalPulled} cập nhật mới` : 'Dữ liệu đã an toàn'}
+            </p>
+            {Number(totalPulled) > 0 && <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>}
+          </div>
        </div>
        <div className="max-h-[360px] overflow-y-auto scrollbar-hide px-1">
-          {syncCategories.map((item, idx) => (
-            <Link key={idx} to={item.path} onClick={onClose} className="flex items-center justify-between p-3 rounded-2xl hover:bg-indigo-50/50 transition-all group">
-               <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-xl bg-slate-50 ${item.count > 0 ? 'text-amber-500' : 'text-emerald-500'}`}><item.icon size={16} /></div>
-                  <span className="text-sm font-semibold text-slate-600">{item.label}</span>
-               </div>
-               <div className="flex items-center space-x-2">
-                  {item.count > 0 ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 animate-pulse">+{item.count}</span> : <div className="p-1 rounded-full bg-emerald-50 text-emerald-600"><Check size={12} strokeWidth={3} /></div>}
-                  <ChevronRight size={14} className="text-slate-300" />
-               </div>
-            </Link>
-          ))}
+          {syncCategories.map((item, idx) => {
+            const outCount = Number(unsyncedCount[item.key] || 0);
+            const inCount = Number(pulledCounts[item.key] || 0);
+            
+            return (
+              <Link key={idx} to={item.path} onClick={onClose} className="flex items-center justify-between p-3 rounded-2xl hover:bg-indigo-50/50 transition-all group">
+                 <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-xl bg-slate-50 ${outCount > 0 ? 'text-amber-500' : inCount > 0 ? 'text-emerald-500' : 'text-slate-300'}`}><item.icon size={16} /></div>
+                    <span className="text-sm font-semibold text-slate-600">{item.label}</span>
+                 </div>
+                 <div className="flex items-center space-x-2">
+                    {outCount > 0 && (
+                      <span className="flex items-center text-[10px] font-black px-1.5 py-0.5 rounded-lg bg-amber-100 text-amber-700">
+                        <ArrowUpCircle size={10} className="mr-1" />{outCount}
+                      </span>
+                    )}
+                    {inCount > 0 && (
+                      <span className="flex items-center text-[10px] font-black px-1.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-700">
+                        <ArrowDownCircle size={10} className="mr-1" />{inCount}
+                      </span>
+                    )}
+                    {outCount === 0 && inCount === 0 && <div className="p-1 rounded-full bg-slate-50 text-slate-300"><Check size={12} strokeWidth={3} /></div>}
+                    <ChevronRight size={14} className="text-slate-300" />
+                 </div>
+              </Link>
+            );
+          })}
        </div>
        <div className="p-2 border-t border-slate-50 mt-2">
          <button onClick={() => { syncData(); onClose(); }} disabled={!isOnline || isSyncing} className="w-full py-4 bg-indigo-600 text-white rounded-[20px] font-bold text-xs uppercase tracking-widest flex items-center justify-center space-x-2 shadow-lg hover:bg-indigo-700 transition-all">
-            {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <CloudDownload size={16} />}
-            <span>{isSyncing ? 'Đang gửi...' : 'Đồng bộ toàn bộ'}</span>
+            {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+            <span>{isSyncing ? 'Đang gửi...' : 'Đồng bộ ngay'}</span>
          </button>
        </div>
     </div>, document.body
@@ -117,7 +139,7 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
 
   const currentUser = useStore(state => state.currentUser);
   const logout = useStore(state => state.logout);
-  const { syncData, isSyncing, unsyncedCount, totalUnsynced, isServerOnline, checkUnsynced } = useSync();
+  const { syncData, isSyncing, unsyncedCount, totalUnsynced, pulledCounts, totalPulled, clearPulledCounts, isServerOnline, checkUnsynced } = useSync();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -141,6 +163,17 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
     return words.length >= 2 ? (words[0][0] + words[words.length - 1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
   }, [currentUser]);
 
+  const handleOpenSyncMenu = () => {
+    if (!isSyncMenuOpen) {
+      checkUnsynced();
+      // Khi mở menu, nếu đang có thông báo dữ liệu mới tải về thì sẽ xóa thông báo sau khi xem
+      if (Number(totalPulled) > 0) {
+        setTimeout(clearPulledCounts, 500); 
+      }
+    }
+    setIsSyncMenuOpen(!isSyncMenuOpen);
+  };
+
   return (
     <header className="h-16 bg-white/95 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-3 lg:px-8 sticky top-0 z-40 shrink-0">
       <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
@@ -158,15 +191,32 @@ const Header = React.memo(({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
 
       <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
         <div className="relative">
-          <button ref={syncBtnRef} onClick={() => { if (!isSyncMenuOpen) checkUnsynced(); setIsSyncMenuOpen(!isSyncMenuOpen); }} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors relative active:scale-90">
+          <button ref={syncBtnRef} onClick={handleOpenSyncMenu} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors relative active:scale-90">
             <Bell size={20} className={isSyncing ? 'animate-bounce' : ''} />
-            {totalUnsynced > 0 && (
+            {/* Fix: Explicitly cast totalUnsynced and totalPulled to numbers */}
+            {Number(totalUnsynced) > 0 ? (
               <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
-                {totalUnsynced > 9 ? '9+' : totalUnsynced}
+                {Number(totalUnsynced) > 9 ? '9+' : totalUnsynced}
               </span>
-            )}
+            ) : Number(totalPulled) > 0 ? (
+              <span className="absolute top-1 right-1 w-4 h-4 bg-emerald-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-pulse">
+                {Number(totalPulled) > 9 ? '9+' : totalPulled}
+              </span>
+            ) : null}
           </button>
-          {isSyncMenuOpen && <SyncPortalDropdown triggerRef={syncBtnRef} onClose={() => setIsSyncMenuOpen(false)} totalUnsynced={totalUnsynced} unsyncedCount={unsyncedCount} syncData={syncData} isSyncing={isSyncing} isOnline={isOnline} />}
+          {isSyncMenuOpen && (
+            <SyncPortalDropdown 
+              triggerRef={syncBtnRef} 
+              onClose={() => setIsSyncMenuOpen(false)} 
+              totalUnsynced={totalUnsynced} 
+              unsyncedCount={unsyncedCount} 
+              pulledCounts={pulledCounts}
+              totalPulled={totalPulled}
+              syncData={syncData} 
+              isSyncing={isSyncing} 
+              isOnline={isOnline} 
+            />
+          )}
         </div>
         
         <button 
